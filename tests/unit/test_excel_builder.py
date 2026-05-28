@@ -137,36 +137,41 @@ class TestLayoutFlexivel:
             assert h == excel_builder.IMG_H
 
     def test_18_cameras_separa_padrao_e_largo(self, app_config, error_jpg):
-        """18 câmeras: 16 no grid padrão + 2 no grid largo (extras)."""
+        """18 câmeras: 16 na sheet principal (padrão) + 2 na sheet extra (largo)."""
         dvr = _dvr_com_n_cameras(18, str(error_jpg), "DVR_18")
         result = excel_builder.gerar_excel([dvr], app_config)
         wb = load_workbook(result)
-        ws = wb["DVR_18"]
 
-        assert len(ws._images) == 18
-
-        # 16 primeiras: tamanho padrão
-        for img in ws._images[:16]:
+        # Sheet principal: 16 câmeras em tamanho padrão
+        ws_main = wb["DVR_18"]
+        assert len(ws_main._images) == 16
+        for img in ws_main._images:
             w, h = _img_size_px(img)
             assert w == excel_builder.IMG_W
             assert h == excel_builder.IMG_H
 
-        # 2 últimas: tamanho largo (> que o padrão)
-        for img in ws._images[16:]:
+        # Sheet extra: 2 câmeras em tamanho largo
+        nome_extra = [n for n in wb.sheetnames if n.startswith("DVR_18") and n != "DVR_18"][0]
+        ws_extra = wb[nome_extra]
+        assert len(ws_extra._images) == 2
+        for img in ws_extra._images:
             w, h = _img_size_px(img)
             assert w == excel_builder.IMG_W_LARGO
             assert h == excel_builder.IMG_H_LARGO
-            assert w > excel_builder.IMG_W
 
     def test_20_cameras_extras_em_layout_largo(self, app_config, error_jpg):
-        """20 câmeras: 16 padrão + 4 largo (2 linhas de 2)."""
+        """20 câmeras: 16 padrão (sheet principal) + 4 largo (sheet extra)."""
         dvr = _dvr_com_n_cameras(20, str(error_jpg), "DVR_20")
         result = excel_builder.gerar_excel([dvr], app_config)
         wb = load_workbook(result)
-        ws = wb["DVR_20"]
 
-        assert len(ws._images) == 20
-        for img in ws._images[16:]:
+        ws_main = wb["DVR_20"]
+        assert len(ws_main._images) == 16
+
+        nome_extra = [n for n in wb.sheetnames if n.startswith("DVR_20") and n != "DVR_20"][0]
+        ws_extra = wb[nome_extra]
+        assert len(ws_extra._images) == 4
+        for img in ws_extra._images:
             w, _ = _img_size_px(img)
             assert w == excel_builder.IMG_W_LARGO
 
@@ -203,20 +208,21 @@ class TestLayoutFlexivel:
         ws = wb["DVR_VAZIO"]
         assert len(ws._images) == 0
 
-    def test_18_cameras_tem_quebra_de_pagina_antes_do_bloco_largo(
+    def test_18_cameras_nao_tem_page_break_dentro_das_sheets(
         self, app_config, error_jpg
     ):
-        """Regressão: sem page-break explícito, o bloco largo era cortado pelo
-        Excel no meio da página (parte renderizada na pág 1 + parte na pág 2).
-        Forçar uma quebra de página garante que os extras saiam limpos."""
+        """Nova abordagem: separação por sheets (não por page-breaks).
+        Cada sheet vira sua própria página naturalmente — page-breaks dentro
+        de uma sheet só causariam quebras adicionais indesejadas."""
         dvr = _dvr_com_n_cameras(18, str(error_jpg), "DVR_PB")
         result = excel_builder.gerar_excel([dvr], app_config)
         wb = load_workbook(result)
-        ws = wb["DVR_PB"]
 
-        # Deve ter exatamente 1 quebra de página (entre standard e wide)
-        assert len(ws.row_breaks.brk) == 1, \
-            f"Esperava 1 page-break, achei {len(ws.row_breaks.brk)}"
+        for ws in wb.worksheets:
+            if ws.title.startswith("DVR_PB"):
+                breaks = ws.row_breaks.brk if ws.row_breaks else []
+                assert len(breaks) == 0, \
+                    f"Sheet {ws.title!r} tem {len(breaks)} page-breaks, esperava 0"
 
     def test_16_cameras_sem_quebra_de_pagina(self, app_config, error_jpg):
         """16 câmeras (só layout padrão) não precisam de quebra forçada."""
@@ -247,3 +253,83 @@ class TestLayoutFlexivel:
         assert ws.page_margins.bottom == excel_builder.PAGE_MARGIN_INCHES
         assert ws.page_margins.left   == excel_builder.PAGE_MARGIN_INCHES
         assert ws.page_margins.right  == excel_builder.PAGE_MARGIN_INCHES
+
+
+# ─── Estratégia "1 sheet por seção" ──────────────────────────────────────────
+# Em vez de 1 sheet com page-breaks (quebrava porque Excel ignorava breaks com
+# imagens IP/analógicas em tamanhos diferentes), cada DVR tem:
+#   - 1 sheet com as primeiras 16 câmeras (grid 4×4)
+#   - 1 sheet adicional com as extras 17+ (grid 2×N largo) — se houver
+
+class TestSheetsPorSecao:
+    def test_dvr_com_16_cameras_gera_uma_sheet(self, app_config, error_jpg):
+        """≤16 câmeras: 1 só sheet por DVR."""
+        dvr = _dvr_com_n_cameras(16, str(error_jpg), "DVR_16C")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+
+        # Só a sheet principal — sem extras
+        sheets_do_dvr = [n for n in wb.sheetnames if n.startswith("DVR_16C")]
+        assert len(sheets_do_dvr) == 1
+
+    def test_dvr_com_18_cameras_gera_duas_sheets(self, app_config, error_jpg):
+        """17+ câmeras: 1 sheet principal (1-16) + 1 sheet de extras (17+)."""
+        dvr = _dvr_com_n_cameras(18, str(error_jpg), "DVR_18C")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+
+        sheets_do_dvr = [n for n in wb.sheetnames if n.startswith("DVR_18C")]
+        assert len(sheets_do_dvr) == 2
+
+    def test_sheet_principal_tem_so_as_16_primeiras_imagens(self, app_config, error_jpg):
+        """A sheet principal nunca tem mais de 16 imagens."""
+        dvr = _dvr_com_n_cameras(20, str(error_jpg), "DVR_20C")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+
+        ws_principal = wb["DVR_20C"]
+        assert len(ws_principal._images) == 16
+
+    def test_sheet_extra_tem_so_as_cameras_excedentes(self, app_config, error_jpg):
+        """A sheet extra tem só as câmeras 17+, no grid largo."""
+        EMU_PER_PIXEL = 9525
+        dvr = _dvr_com_n_cameras(20, str(error_jpg), "DVR_20E")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+
+        # Encontra a sheet de extras (a que não é a principal "DVR_20E")
+        nome_extra = [n for n in wb.sheetnames if n.startswith("DVR_20E") and n != "DVR_20E"]
+        assert len(nome_extra) == 1
+        ws_extra = wb[nome_extra[0]]
+
+        # 4 câmeras extras, todas no tamanho LARGO
+        assert len(ws_extra._images) == 4
+        for img in ws_extra._images:
+            w_px = img.anchor.ext.cx // EMU_PER_PIXEL
+            assert w_px == excel_builder.IMG_W_LARGO
+
+    def test_sheets_do_dvr_sao_consecutivas_na_ordem_certa(self, app_config, error_jpg):
+        """Sheets de um DVR devem aparecer em sequência: principal, depois extra."""
+        dvr1 = _dvr_com_n_cameras(18, str(error_jpg), "DVR_A")  # principal + extra
+        dvr2 = _dvr_com_n_cameras(8, str(error_jpg), "DVR_B")   # só principal
+        result = excel_builder.gerar_excel([dvr1, dvr2], app_config)
+        wb = load_workbook(result)
+
+        # Ordem esperada: DVR_A (principal), DVR_A_EXTRA, DVR_B
+        nomes = wb.sheetnames
+        idx_a       = nomes.index("DVR_A")
+        idx_a_extra = [i for i, n in enumerate(nomes) if n.startswith("DVR_A") and n != "DVR_A"][0]
+        idx_b       = nomes.index("DVR_B")
+
+        assert idx_a < idx_a_extra < idx_b
+
+    def test_sheet_extra_tambem_tem_margens_estreitas(self, app_config, error_jpg):
+        """Margens estreitas aplicadas também na sheet de extras."""
+        dvr = _dvr_com_n_cameras(18, str(error_jpg), "DVR_X")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+
+        nome_extra = [n for n in wb.sheetnames if n.startswith("DVR_X") and n != "DVR_X"][0]
+        ws_extra = wb[nome_extra]
+        assert ws_extra.page_margins.top  == excel_builder.PAGE_MARGIN_INCHES
+        assert ws_extra.page_margins.left == excel_builder.PAGE_MARGIN_INCHES

@@ -8,7 +8,6 @@ from typing import List
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Font
-from openpyxl.worksheet.pagebreak import Break
 
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
@@ -126,63 +125,97 @@ def gerar_excel(dvrs: List[DVR], config: AppConfig) -> str:
     wb.remove(wb.active)  # remove aba padrão vazia
 
     for dvr in dvrs:
-        ws = wb.create_sheet(dvr.nome[:31])
-
-        # ── Margens estreitas ──
-        ws.page_margins.left   = PAGE_MARGIN_INCHES
-        ws.page_margins.right  = PAGE_MARGIN_INCHES
-        ws.page_margins.top    = PAGE_MARGIN_INCHES
-        ws.page_margins.bottom = PAGE_MARGIN_INCHES
-        ws.page_margins.header = HEADER_FOOTER_MARGIN_INCHES
-        ws.page_margins.footer = HEADER_FOOTER_MARGIN_INCHES
-
-        # ── Título ──
-        ws.merge_cells("A1:H1")
-        ws["A1"] = f"CHECKLIST DVR - {dvr.nome}"
-        ws["A1"].font = Font(size=14, bold=True)
-        ws["A1"].alignment = Alignment(horizontal="center")
-
-        # ── Status do HD ──
-        ws.merge_cells("A2:H2")
-        ws["A2"] = (
-            f"HD: {dvr.hd.status} | "
-            f"Total: {dvr.hd.total} | "
-            f"Livre: {dvr.hd.livre}"
-        )
-        ws["A2"].font = Font(bold=True)
-        ws["A2"].alignment = Alignment(horizontal="center")
-
-        # ── Grid das câmeras: layout flexível ──
-        # Até 16 câmeras: grid padrão 4×N.
-        # 17+ câmeras: primeiras 16 no grid padrão; extras em grid largo 2×N
-        #               com imagens ~2× maiores (cada uma ocupando meia página).
+        # ── Estratégia "1 sheet por seção" ──
+        # Câmeras IP e analógicas têm dimensões diferentes, e o Excel via COM
+        # nem sempre honra page-breaks manuais com imagens grandes — resultado:
+        # imagens cortadas no meio. Em vez disso, cada seção lógica
+        # (grid padrão / extras largos) vira sua própria sheet, e o Excel
+        # garante que cada sheet vire pelo menos 1 página de PDF.
         primeiras = dvr.cameras[:MAX_CAMERAS_PADRAO]
         extras    = dvr.cameras[MAX_CAMERAS_PADRAO:]
 
-        next_row = _adicionar_grid(
-            ws, primeiras, row_start=4,
+        # ── Sheet principal: até 16 câmeras no grid 4×N padrão ──
+        ws_main = wb.create_sheet(_sheet_name_principal(dvr.nome))
+        _aplicar_pagesetup(ws_main)
+        _aplicar_larguras(ws_main)
+        _adicionar_cabecalho(ws_main, dvr)
+        _adicionar_grid(
+            ws_main, primeiras, row_start=4,
             cols=COLS_PADRAO,
             img_w=IMG_W, img_h=IMG_H,
             name_offset=NAME_OFFSET,
             block_height=BLOCK_HEIGHT,
         )
 
+        # ── Sheet de extras: câmeras 17+ no grid 2×N largo ──
         if extras:
-            # Quebra de página obrigatória antes do bloco largo.
-            # Sem isso, o Excel corta as imagens grandes ao meio entre páginas
-            # (renderiza a parte de cima na pág 1 e a de baixo na pág 2).
-            ws.row_breaks.append(Break(id=next_row))
-
+            ws_extra = wb.create_sheet(_sheet_name_extra(dvr.nome))
+            _aplicar_pagesetup(ws_extra)
+            _aplicar_larguras(ws_extra)
+            _adicionar_cabecalho(ws_extra, dvr, sufixo=" (extras)")
             _adicionar_grid(
-                ws, extras, row_start=next_row,
+                ws_extra, extras, row_start=4,
                 cols=COLS_LARGO,
                 img_w=IMG_W_LARGO, img_h=IMG_H_LARGO,
                 name_offset=NAME_OFFSET_LARGO,
                 block_height=BLOCK_HEIGHT_LARGO,
             )
 
-        for c in "ABCDEFGH":
-            ws.column_dimensions[c].width = 26
-
     wb.save(excel_path)
     return excel_path
+
+
+# ─── Helpers de sheet ────────────────────────────────────────────────────────
+
+# Excel limita nome de sheet a 31 chars. Reservamos "_E" no fim para a sheet
+# de extras, então a base do nome principal fica em [:29].
+_LIMITE_NOME_SHEET = 31
+_SUFIXO_EXTRA = "_E"
+
+
+def _sheet_name_principal(dvr_nome: str) -> str:
+    return dvr_nome[:_LIMITE_NOME_SHEET]
+
+
+def _sheet_name_extra(dvr_nome: str) -> str:
+    base_max = _LIMITE_NOME_SHEET - len(_SUFIXO_EXTRA)
+    return f"{dvr_nome[:base_max]}{_SUFIXO_EXTRA}"
+
+
+def _aplicar_pagesetup(ws) -> None:
+    """Margens estreitas + paisagem + fit-to-width — aplicado em cada sheet."""
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.print_options.horizontalCentered = True
+    ws.print_options.verticalCentered = True
+
+    ws.page_margins.left   = PAGE_MARGIN_INCHES
+    ws.page_margins.right  = PAGE_MARGIN_INCHES
+    ws.page_margins.top    = PAGE_MARGIN_INCHES
+    ws.page_margins.bottom = PAGE_MARGIN_INCHES
+    ws.page_margins.header = HEADER_FOOTER_MARGIN_INCHES
+    ws.page_margins.footer = HEADER_FOOTER_MARGIN_INCHES
+
+
+def _aplicar_larguras(ws) -> None:
+    for c in "ABCDEFGH":
+        ws.column_dimensions[c].width = 26
+
+
+def _adicionar_cabecalho(ws, dvr: DVR, sufixo: str = "") -> None:
+    """Título + linha de status do HD nas rows 1-2."""
+    ws.merge_cells("A1:H1")
+    ws["A1"] = f"CHECKLIST DVR - {dvr.nome}{sufixo}"
+    ws["A1"].font = Font(size=14, bold=True)
+    ws["A1"].alignment = Alignment(horizontal="center")
+
+    ws.merge_cells("A2:H2")
+    ws["A2"] = (
+        f"HD: {dvr.hd.status} | "
+        f"Total: {dvr.hd.total} | "
+        f"Livre: {dvr.hd.livre}"
+    )
+    ws["A2"].font = Font(bold=True)
+    ws["A2"].alignment = Alignment(horizontal="center")

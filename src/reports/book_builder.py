@@ -1,76 +1,70 @@
 """
-Book PDF: gera um xlsx (depois exportado a PDF) com **uma câmera por página**
-em paisagem, com a imagem em tamanho grande para inspeção detalhada.
+Book PDF: cada câmera fica em uma **planilha (sheet) dedicada** dentro do xlsx.
 
-Complementar ao Checklist (4 câmeras por linha, imagens pequenas). O book é
-o "livro de imagens" — útil quando se precisa ver detalhes de uma câmera
-específica em alta resolução.
+Estratégia: como câmeras IP e analógicas têm dimensões diferentes, qualquer
+cálculo de altura baseado em rows é frágil. Em vez disso, exploramos a regra
+do Excel: **cada sheet exporta no mínimo 1 página de PDF**. Como cada sheet
+contém apenas 1 imagem, o Excel não consegue quebrar o conteúdo no meio.
 
-Estrutura de cada página:
-  ┌────────────────────────────────────────┐
-  │   <DVR.nome> - <Camera.nome> - STATUS  │  ← cabeçalho
-  │                                        │
-  │   ┌──────────────────────────────────┐ │
-  │   │                                  │ │
-  │   │      IMAGEM (1000 × 625)         │ │  ← imagem grande
-  │   │                                  │ │
-  │   │                                  │ │
-  │   └──────────────────────────────────┘ │
-  └────────────────────────────────────────┘
+Resultado: N câmeras (com imagem capturada) = N páginas no PDF.
+
+Câmeras cujo capture falhou (imagem == config.error_img) são **filtradas** —
+não geram página, evitando book cheio de placeholders sem informação útil.
+
+Cada sheet renderiza:
+  ┌──────────────────────────────────────────┐
+  │   <DVR.nome> - <Camera.nome> - STATUS    │  ← cabeçalho (row 1)
+  │                                          │
+  │   ┌──────────────────────────────────┐   │
+  │   │                                  │   │
+  │   │      IMAGEM (1000 × 625)         │   │  ← imagem (rows 3+)
+  │   │                                  │   │
+  │   └──────────────────────────────────┘   │
+  └──────────────────────────────────────────┘
 """
 from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import List
+from typing import List, Tuple
 
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Font
-from openpyxl.worksheet.pagebreak import Break
 
-from src.domain.models import DVR
+from src.domain.models import DVR, Camera
 from src.infra.app_config import AppConfig
 from src.reports.excel_builder import _slug_instalacao
 
-# ── Margens da página (estreitas para liberar espaço pra imagem) ──────────────
-# Default do Excel: 0.75" top/bottom, 0.70" left/right.
-# Com 0.25" em todos os lados, ganhamos ~72pt vertical e horizontal.
+# ── Margens estreitas (mesmas do excel_builder) ──────────────────────────────
 PAGE_MARGIN_INCHES = 0.25
-HEADER_FOOTER_MARGIN_INCHES = 0.1   # para o cabeçalho/rodapé do print
+HEADER_FOOTER_MARGIN_INCHES = 0.1
 
-# ── Dimensões da imagem em cada página do book (paisagem A4) ──────────────────
-# A4 paisagem ≈ 842 × 595 pt; com margens estreitas (0.25" × 2 = 36pt):
-#   útil ≈ 806 × 559 pt vertical.
-#
-# 1000 × 625 px = 750 × 469 pt na renderização (mantém ratio 1.6 como o checklist).
+# ── Imagem grande, ocupando boa parte da página ──────────────────────────────
+# A4 paisagem c/ margens 0.25" ≈ 806 × 559 pt útil (1075 × 745 px @ 96dpi).
+# 1000 × 625 = 750 × 469 pt (ratio 1.6, mesmo do checklist).
 BOOK_IMG_W = 1000
 BOOK_IMG_H = 625
 
-# ── Layout de cada "página" do book em rows do Excel ──────────────────────────
-# Soma das alturas precisa ser <= 559pt (espaço útil em A4 paisagem c/ 0.25"):
-#   título(28) + spacer(15) + 22 rows × 22pt(484) + 2 buffer × 15pt(30) = 557pt  ✓
-TITULO_ROW          = 1     # cabeçalho da câmera
-SPACER_APOS_TITULO  = 1     # linha em branco
-IMG_ROW_OFFSET      = 2     # imagem começa em (page_start + 2)
-LINHAS_PARA_IMAGEM  = 22    # 22 × 22pt = 484pt — cabe imagem de 469pt (625px)
-ROWS_POR_PAGINA     = 26    # total reservado por câmera (cabe em landscape A4)
-
-# Quantidade de colunas largas (acomoda a imagem horizontalmente)
-COLS_BOOK = list("ABCDEFGHIJKLMN")  # 14 colunas
-
-# Altura uniforme das rows da imagem
+# ── Layout em rows do Excel (ALTURA TOTAL ≤ 559pt para garantir 1 página) ───
+TITULO_ROW         = 1
+SPACER_APOS_TITULO = 1
+IMG_ROW_OFFSET     = 2     # imagem começa em row 3
+LINHAS_PARA_IMAGEM = 22    # 22 × 22pt = 484pt (cabe 469pt da imagem)
 ALTURA_ROW_IMG     = 22
 ALTURA_ROW_TITULO  = 28
+
+# Colunas largas para acomodar a imagem (~1000 px de largura)
+COLS_BOOK = list("ABCDEFGHIJKLMN")  # 14 colunas
 
 
 def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
     """
-    Gera arquivo .xlsx com uma câmera por página, em paisagem.
+    Gera arquivo .xlsx com uma planilha por câmera, em paisagem.
 
-    Cada câmera é precedida por um cabeçalho (DVR + nome + status) e a imagem
-    aparece em tamanho cheio (1000 × 625 px). Páginas são separadas por quebras
-    manuais de página — depois honradas pelo pdf_exporter (que re-aplica via COM).
+    Cada câmera com imagem capturada (não error_img) vira uma sheet com
+    cabeçalho e a imagem em tamanho cheio. O pdf_exporter depois converte
+    cada sheet em (pelo menos) 1 página de PDF.
 
     Nome do arquivo: ``Book_<slug>_<DD-MM-YYYY>_<HH-MM-SS>.xlsx``
     """
@@ -88,17 +82,58 @@ def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
 
     wb = Workbook()
     wb.remove(wb.active)
-    ws = wb.create_sheet("Book")
 
-    # Page setup: paisagem ajustada a 1 página de largura
+    # Filtra apenas câmeras com imagem capturada (descarta error_img placeholders)
+    cameras_validas: List[Tuple[DVR, Camera]] = [
+        (dvr, cam)
+        for dvr in dvrs
+        for cam in dvr.cameras
+        if cam.imagem and cam.imagem != config.error_img
+    ]
+
+    if not cameras_validas:
+        # Edge case: tudo offline. Cria sheet placeholder para o xlsx ser válido.
+        ws = wb.create_sheet("Vazio")
+        _aplicar_pagesetup(ws)
+        _aplicar_larguras(ws)
+        ws["A1"] = "Nenhuma câmera com imagem capturada — book vazio."
+        ws["A1"].font = Font(size=12, italic=True)
+        wb.save(book_path)
+        return book_path
+
+    for idx, (dvr, cam) in enumerate(cameras_validas):
+        sheet_name = _nome_sheet(idx, cam.nome)
+        ws = wb.create_sheet(sheet_name)
+        _aplicar_pagesetup(ws)
+        _aplicar_larguras(ws)
+        _renderizar_camera(ws, dvr, cam)
+
+    wb.save(book_path)
+    return book_path
+
+
+# ─── Helpers privados ────────────────────────────────────────────────────────
+
+def _nome_sheet(idx: int, cam_nome: str) -> str:
+    """
+    Nome único para cada sheet, limitado a 31 chars (limite do Excel).
+
+    Format: "<3-digit-idx>_<cam_nome>" — ex.: "001_C1", "002_C2", "017_C17".
+    Garante ordenação alfabética por idx.
+    """
+    base = f"{idx + 1:03d}_{cam_nome}"
+    return base[:31]
+
+
+def _aplicar_pagesetup(ws) -> None:
+    """Paisagem A4, margens estreitas, fit-to-width 1 página."""
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
+    ws.page_setup.fitToHeight = 1   # cabe em 1 página (1 imagem por sheet)
     ws.print_options.horizontalCentered = True
     ws.print_options.verticalCentered = True
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
-    # Margens estreitas — libera espaço pra imagem maior
     ws.page_margins.left   = PAGE_MARGIN_INCHES
     ws.page_margins.right  = PAGE_MARGIN_INCHES
     ws.page_margins.top    = PAGE_MARGIN_INCHES
@@ -106,60 +141,32 @@ def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
     ws.page_margins.header = HEADER_FOOTER_MARGIN_INCHES
     ws.page_margins.footer = HEADER_FOOTER_MARGIN_INCHES
 
-    # Coleta todas as câmeras de todos os DVRs, em sequência
-    cameras_planas: List[tuple] = [
-        (dvr, cam) for dvr in dvrs for cam in dvr.cameras
-    ]
 
-    if not cameras_planas:
-        # Nada a renderizar; salva o arquivo vazio com page setup configurado
-        _aplicar_larguras(ws)
-        wb.save(book_path)
-        return book_path
-
-    for n_pagina, (dvr, cam) in enumerate(cameras_planas):
-        page_start = 1 + n_pagina * ROWS_POR_PAGINA
-        _renderizar_pagina(ws, page_start, dvr, cam)
-
-        # Quebra de página antes da próxima câmera (não na última)
-        if n_pagina < len(cameras_planas) - 1:
-            proxima_page_start = page_start + ROWS_POR_PAGINA
-            ws.row_breaks.append(Break(id=proxima_page_start))
-
-    _aplicar_larguras(ws)
-    wb.save(book_path)
-    return book_path
+def _aplicar_larguras(ws) -> None:
+    """Larguras de coluna que acomodam ~1000px de imagem."""
+    for col in COLS_BOOK:
+        ws.column_dimensions[col].width = 12
 
 
-def _renderizar_pagina(ws, page_start: int, dvr: DVR, cam) -> None:
-    """Desenha uma 'página' do book a partir de page_start (uma câmera)."""
-    titulo_row = page_start + TITULO_ROW - 1   # row 1-indexed dentro da página
-    img_row    = page_start + IMG_ROW_OFFSET
-
+def _renderizar_camera(ws, dvr: DVR, cam: Camera) -> None:
+    """Desenha título + imagem em uma sheet dedicada a uma câmera."""
     # ── Título ──
-    titulo_cell = f"A{titulo_row}"
-    ws.merge_cells(f"A{titulo_row}:N{titulo_row}")
-    ws[titulo_cell] = f"{dvr.nome}  -  {cam.nome}  -  {cam.status}"
-    ws[titulo_cell].font = Font(size=14, bold=True)
-    ws[titulo_cell].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[titulo_row].height = ALTURA_ROW_TITULO
+    ws.merge_cells(f"A{TITULO_ROW}:N{TITULO_ROW}")
+    ws[f"A{TITULO_ROW}"] = f"{dvr.nome}  -  {cam.nome}  -  {cam.status}"
+    ws[f"A{TITULO_ROW}"].font = Font(size=14, bold=True)
+    ws[f"A{TITULO_ROW}"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[TITULO_ROW].height = ALTURA_ROW_TITULO
 
     # ── Imagem ──
+    img_row = TITULO_ROW + IMG_ROW_OFFSET
     try:
         xl_img = XLImage(cam.imagem)
         xl_img.width  = BOOK_IMG_W
         xl_img.height = BOOK_IMG_H
         ws.add_image(xl_img, f"A{img_row}")
     except (FileNotFoundError, OSError):
-        # Imagem ausente/inválida: escreve um placeholder textual
         ws[f"A{img_row}"] = f"Imagem indisponivel: {cam.imagem}"
 
-    # Altura uniforme nas rows reservadas para a imagem
+    # Altura uniforme nas rows da imagem
     for r in range(img_row, img_row + LINHAS_PARA_IMAGEM):
         ws.row_dimensions[r].height = ALTURA_ROW_IMG
-
-
-def _aplicar_larguras(ws) -> None:
-    """Larguras de coluna que acomodam 1000px de imagem (≈ 14 × 12 caracteres)."""
-    for col in COLS_BOOK:
-        ws.column_dimensions[col].width = 12
