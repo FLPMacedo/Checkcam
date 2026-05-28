@@ -86,9 +86,49 @@ def test_dialog_imagem_invalida_mostra_mensagem_visivel(qtbot, tmp_path):
     # Aguarda o QTimer disparar _show_current
     qtbot.wait(50)
 
-    # info_label deve estar preenchido (não silencioso)
-    assert "C1" in dialog.info_label.text()
+    # name_label do painel lateral deve mostrar a câmera
+    assert "C1" in dialog.name_label.text()
     # image_label deve mostrar texto de erro (não pixmap)
     assert "não pôde ser carregada" in dialog.image_label.text()
     # status da câmera deve ter sido marcado
     assert cam.status == "ERRO_IMAGEM"
+
+
+# ─── Novo layout: info à esquerda, imagem ao centro, opções à direita ──────
+
+def test_dialog_tem_painel_de_info_e_painel_de_opcoes(qtbot, small_camera_jpg):
+    """Layout horizontal: painel de info à esquerda, opções à direita,
+    imagem no centro. Resolve problema da barra inferior ficar escondida
+    pela barra de tarefas do Windows."""
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    # Painéis laterais existem como widgets
+    assert dialog.info_panel is not None
+    assert dialog.hints_panel is not None
+    # Têm largura fixa não-zero (são sidebars)
+    assert dialog.info_panel.minimumWidth() > 0
+    assert dialog.hints_panel.minimumWidth() > 0
+
+
+def test_dialog_exibe_nome_da_camera_no_painel_lateral(qtbot, small_camera_jpg):
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    assert "C1" in dialog.name_label.text()
+
+
+def test_dialog_exibe_contador_separado_do_nome(qtbot, small_camera_jpg):
+    """Contador '1/N' fica em counter_label, separado de name_label."""
+    cams = [_cam(str(small_camera_jpg)), _cam(str(small_camera_jpg))]
+    dialog = VisualReviewDialog(cams, "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    # Contador mostra "1/2" (estamos na primeira câmera de 2)
+    txt = dialog.counter_label.text()
+    assert "1" in txt and "2" in txt

@@ -6,8 +6,10 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
+    QHBoxLayout,
     QLabel,
     QVBoxLayout,
+    QWidget,
 )
 
 from src.domain.models import Camera
@@ -20,18 +22,41 @@ _STATUS_KEYS: dict[Qt.Key, str] = {
     Qt.Key.Key_5: "NAO_RECONHECIDA",
 }
 
+# Texto curto que aparece no painel lateral direito, para cada tecla
+_HINT_LABELS = [
+    ("1", "OK"),
+    ("2", "EMBAÇADA / SUJA"),
+    ("3", "DISTORCIDA"),
+    ("4", "TONALIDADE"),
+    ("5", "NÃO RECONHECIDA"),
+]
+
+_PANEL_BG = "#1a1a1a"
+_PANEL_FG = "#e6e6e6"
+_ACCENT   = "#4EC9B0"   # ciano/turquesa para as teclas e contador
+_MUTED    = "#888888"
+
 
 class VisualReviewDialog(QDialog):
     """
     Diálogo de revisão visual — substitui o cv2.imshow do legado.
 
-    Exibe cada câmera em tela cheia e aguarda input do teclado:
-        1 → OK
-        2 → EMBAÇADA_SUJA
-        3 → DISTORCIDA
-        4 → TONALIDADE_CLARA_ESCURA
-        5 → NAO_RECONHECIDA
-        Q / Escape → interrompe; câmeras restantes mantêm status atual
+    Layout horizontal:
+      ┌──────────┬──────────────────────────┬──────────┐
+      │  INFO    │                          │  TECLAS  │
+      │ (esq.)   │       IMAGEM             │ (dir.)   │
+      │ contador │       (centro)           │  1 OK    │
+      │ nome     │                          │  2 EMB.  │
+      │          │                          │  ...     │
+      └──────────┴──────────────────────────┴──────────┘
+
+    Resolve dois problemas do layout anterior:
+      - Nome enorme em cima do vídeo "comendo" altura útil
+      - Barra de teclas no rodapé escondida pela barra de tarefas do Windows
+
+    Aguarda input do teclado:
+        1 → OK            3 → DISTORCIDA              5 → NAO_RECONHECIDA
+        2 → EMBAÇADA_SUJA 4 → TONALIDADE_CLARA_ESCURA Q/Esc → interrompe
 
     Câmeras cuja imagem coincide com error_img são ignoradas.
     Câmeras cuja imagem não pode ser carregada recebem status "ERRO_IMAGEM".
@@ -58,26 +83,99 @@ class VisualReviewDialog(QDialog):
         self.setWindowTitle("Revisão Visual")
         self.setMinimumSize(900, 650)
         self.setWindowState(Qt.WindowState.WindowMaximized)
+        self.setStyleSheet("QDialog { background:#000; }")
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        self.info_label = QLabel()
-        self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.info_label.setStyleSheet("font-size: 14pt; padding: 6px;")
-        layout.addWidget(self.info_label)
+        root.addWidget(self._build_info_panel())
+        root.addWidget(self._build_image_area(), stretch=1)
+        root.addWidget(self._build_hints_panel())
+
+    def _build_info_panel(self) -> QWidget:
+        """Painel esquerdo: contador + nome da câmera."""
+        self.info_panel = QWidget()
+        self.info_panel.setMinimumWidth(220)
+        self.info_panel.setMaximumWidth(260)
+        self.info_panel.setStyleSheet(
+            f"background:{_PANEL_BG}; color:{_PANEL_FG};"
+        )
+
+        layout = QVBoxLayout(self.info_panel)
+        layout.setContentsMargins(20, 28, 20, 20)
+        layout.setSpacing(12)
+
+        header = QLabel("CÂMERA")
+        header.setStyleSheet(
+            f"font-size:10pt; color:{_MUTED}; letter-spacing:2px;"
+        )
+        layout.addWidget(header)
+
+        self.counter_label = QLabel("—")
+        self.counter_label.setStyleSheet(
+            f"font-size:22pt; color:{_ACCENT}; font-weight:bold;"
+        )
+        layout.addWidget(self.counter_label)
+
+        self.name_label = QLabel("—")
+        self.name_label.setWordWrap(True)
+        self.name_label.setStyleSheet(
+            f"font-size:13pt; color:{_PANEL_FG}; font-weight:600;"
+        )
+        layout.addWidget(self.name_label)
+
+        layout.addStretch()
+        return self.info_panel
+
+    def _build_image_area(self) -> QWidget:
+        """Área central: imagem da câmera, fundo preto."""
+        container = QWidget()
+        container.setStyleSheet("background:#000;")
+        wrap = QVBoxLayout(container)
+        wrap.setContentsMargins(8, 8, 8, 8)
 
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.image_label, stretch=1)
+        self.image_label.setStyleSheet("color:#aaa;")
+        wrap.addWidget(self.image_label, stretch=1)
+        return container
 
-        hint = QLabel(
-            "1 OK  │  2 EMBAÇADA/SUJA  │  3 DISTORCIDA  │  "
-            "4 TONALIDADE  │  5 NÃO RECONHECIDA  │  Q/ESC sair"
+    def _build_hints_panel(self) -> QWidget:
+        """Painel direito: lista vertical das teclas 1–5 + Q/ESC."""
+        self.hints_panel = QWidget()
+        self.hints_panel.setMinimumWidth(210)
+        self.hints_panel.setMaximumWidth(260)
+        self.hints_panel.setStyleSheet(
+            f"background:{_PANEL_BG}; color:{_PANEL_FG};"
         )
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint.setStyleSheet("background:#111; color:#eee; font-size:11pt; padding:6px;")
-        layout.addWidget(hint)
+
+        layout = QVBoxLayout(self.hints_panel)
+        layout.setContentsMargins(20, 28, 20, 20)
+        layout.setSpacing(14)
+
+        header = QLabel("CLASSIFICAR")
+        header.setStyleSheet(
+            f"font-size:10pt; color:{_MUTED}; letter-spacing:2px;"
+        )
+        layout.addWidget(header)
+
+        for key, descricao in _HINT_LABELS:
+            linha = QLabel(
+                f'<span style="color:{_ACCENT}; font-size:18pt; font-weight:bold;">{key}</span>'
+                f'  <span style="color:{_PANEL_FG}; font-size:10pt;">{descricao}</span>'
+            )
+            linha.setTextFormat(Qt.TextFormat.RichText)
+            layout.addWidget(linha)
+
+        layout.addStretch()
+
+        rodape = QLabel(
+            f'<span style="color:{_MUTED}; font-size:9pt;">Q / ESC para sair</span>'
+        )
+        rodape.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(rodape)
+        return self.hints_panel
 
     # ── Navegação ─────────────────────────────────────────────────────────────
 
@@ -88,25 +186,21 @@ class VisualReviewDialog(QDialog):
 
         cam = self._cameras[self._idx]
 
-        # Atualiza info e título ANTES de tentar carregar a imagem.
-        # Garante que o usuário sempre veja qual câmera está em foco,
-        # mesmo se o pixmap falhar (em vez de tela em branco silenciosa).
-        self.info_label.setText(
-            f"Câmera {self._idx + 1}/{len(self._cameras)} — {cam.nome}"
+        # Atualiza painel lateral ANTES de tentar carregar a imagem.
+        # Garante que o usuário sempre veja qual câmera está em foco.
+        self.counter_label.setText(
+            f"{self._idx + 1}/{len(self._cameras)}"
         )
+        self.name_label.setText(cam.nome)
         self.setWindowTitle(f"Revisão Visual – {cam.nome}")
 
-        # Tenta carregar a imagem; calcula tamanho de escala em runtime,
-        # baseado no tamanho atual do label, para evitar imagem minúscula
-        # em monitores pequenos ou imagem cortada em monitores grandes.
         pixmap = QPixmap(cam.imagem)
 
         if pixmap.isNull():
             cam.status = "ERRO_IMAGEM"
             self.image_label.clear()
             self.image_label.setStyleSheet(
-                "color: #E74856; font-size: 13pt; padding: 24px;"
-                "background:#1a1a1a;"
+                "color:#E74856; font-size:13pt; padding:24px; background:#1a1a1a;"
             )
             self.image_label.setText(
                 f"⚠  Imagem não pôde ser carregada pelo Qt.\n\n"
@@ -115,14 +209,11 @@ class VisualReviewDialog(QDialog):
             )
             return
 
-        # Imagem carregada — limpa estilo de erro caso tenha sido aplicado antes
-        self.image_label.setStyleSheet("")
+        self.image_label.setStyleSheet("color:#aaa;")
         self.image_label.setText("")
 
-        # Escala usando o tamanho atual do label (preserva proporção)
         target = self.image_label.size()
         if target.width() < 200 or target.height() < 200:
-            # fallback se ainda não foi layoutado
             target = pixmap.size().scaled(
                 1600, 900, Qt.AspectRatioMode.KeepAspectRatio
             )
