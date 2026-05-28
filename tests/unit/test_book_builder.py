@@ -138,3 +138,35 @@ def test_book_orientacao_paisagem(app_config, error_jpg):
     ws = wb.active
 
     assert ws.page_setup.orientation == "landscape"
+
+
+def test_book_altura_de_cada_pagina_cabe_em_landscape_a4(app_config, error_jpg):
+    """Regressão: o conteúdo alocado para UMA câmera precisa caber em
+    uma página landscape A4 (~487pt depois das margens default).
+
+    Sem isso, o Excel quebra a página AUTOMATICAMENTE no meio do conteúdo,
+    cortando a imagem e empurrando o resto para a página seguinte —
+    independente das quebras manuais que adicionarmos."""
+    # Espaço útil em landscape A4 com margens default (0.75" × 2 = 108pt)
+    MAX_HEIGHT_PT = 487
+
+    dvr = _dvr_com_cameras("DVR_HT", str(error_jpg), 2)
+    result = book_builder.gerar_book_excel([dvr], app_config)
+    wb = load_workbook(result)
+    ws = wb.active
+
+    # Pega a primeira quebra (delimita o fim da página 1)
+    assert ws.row_breaks.brk, "Não há quebra de página para delimitar"
+    primeira_quebra = min(b.id for b in ws.row_breaks.brk)
+
+    total_pt = 0.0
+    for row_num in range(1, primeira_quebra):
+        altura = ws.row_dimensions[row_num].height
+        if altura is None:
+            altura = 15  # default do openpyxl
+        total_pt += altura
+
+    assert total_pt <= MAX_HEIGHT_PT, (
+        f"Conteúdo de uma página ({total_pt:.0f}pt) excede landscape A4 "
+        f"({MAX_HEIGHT_PT}pt) — Excel vai quebrar no meio da imagem"
+    )

@@ -34,17 +34,22 @@ from src.infra.app_config import AppConfig
 from src.reports.excel_builder import _slug_instalacao
 
 # ── Dimensões da imagem em cada página do book (paisagem A4) ──────────────────
-# A4 paisagem ≈ 1122 × 794 pixels @96 DPI.
-# Imagem em 1000 × 625 deixa margens generosas pro título e respiração.
-BOOK_IMG_W = 1000
-BOOK_IMG_H = 625
+# A4 paisagem ≈ 842 × 595 pt; espaço útil após margens default (0.75" × 2)
+#   ≈ 734 × 487 pt. Tudo precisa caber em 487pt VERTICAIS, senão o Excel
+#   quebra a página NO MEIO da imagem.
+#
+# 800 × 500 px = 600 × 375 pt na renderização (mantém ratio 1.6 como o checklist).
+BOOK_IMG_W = 800
+BOOK_IMG_H = 500
 
 # ── Layout de cada "página" do book em rows do Excel ──────────────────────────
+# Soma das alturas precisa ser <= 487pt:
+#   título(28) + spacer(15) + 18 rows × 22pt(396) + 2 buffer × 15pt(30) = 469pt  ✓
 TITULO_ROW          = 1     # cabeçalho da câmera
 SPACER_APOS_TITULO  = 1     # linha em branco
 IMG_ROW_OFFSET      = 2     # imagem começa em (page_start + 2)
-LINHAS_PARA_IMAGEM  = 26    # ~26 rows × ~22 points ≈ 572 points (cabe 625 px)
-ROWS_POR_PAGINA     = 30    # total reservado por câmera (com folga)
+LINHAS_PARA_IMAGEM  = 18    # 18 × 22pt = 396pt — cabe imagem de 375pt (500px)
+ROWS_POR_PAGINA     = 22    # total reservado por câmera (cabe em landscape A4)
 
 # Quantidade de colunas largas (acomoda a imagem horizontalmente)
 COLS_BOOK = list("ABCDEFGHIJKLMN")  # 14 colunas
