@@ -71,6 +71,11 @@ def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
 
     Nome do arquivo: ``Book_<slug>_<DD-MM-YYYY>_<HH-MM-SS>.xlsx``
     """
+    if not config.relatorios_dir:
+        raise ValueError(
+            "config.relatorios_dir está vazio. "
+            "Edite a instalação na UI e preencha 'Dir. relatórios'."
+        )
     os.makedirs(config.relatorios_dir, exist_ok=True)
 
     slug = _slug_instalacao(config.nome_instalacao) or "DVRs"

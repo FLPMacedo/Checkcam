@@ -1,6 +1,7 @@
 """Unit tests for src/reports/excel_builder.py"""
 import os
 
+import pytest
 from openpyxl import load_workbook
 
 from src.domain.models import Camera, DVR
@@ -241,6 +242,15 @@ class TestLayoutFlexivel:
         ws = wb["DVR_4"]
 
         assert len(ws.row_breaks.brk) == 0
+
+    def test_relatorios_dir_vazio_da_erro_claro(self, app_config, error_jpg):
+        """Regressão: WinError 3 com mensagem '' críptica quando o usuário
+        deixa o campo de caminho de relatórios em branco na instalação."""
+        app_config.relatorios_dir = ""
+        dvr = _dvr_com_n_cameras(1, str(error_jpg), "DVR_NULL")
+
+        with pytest.raises(ValueError, match="relatorios_dir"):
+            excel_builder.gerar_excel([dvr], app_config)
 
     def test_checklist_define_margens_estreitas(self, app_config, error_jpg):
         """Margens estreitas (0.25") em todos os lados — mais espaço pra imagem."""

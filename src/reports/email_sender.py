@@ -203,6 +203,11 @@ def enviar_email(
         anexos.append(os.path.abspath(book_path))
 
     # ── Backup em disco ──
+    if not config.logs_dir:
+        raise ValueError(
+            "config.logs_dir está vazio. "
+            "Edite a instalação na UI e preencha 'Dir. logs'."
+        )
     os.makedirs(config.logs_dir, exist_ok=True)
     agora = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     arquivo_backup = os.path.join(config.logs_dir, f"email_{agora}.txt")

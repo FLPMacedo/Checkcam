@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from src.domain.instalacao import Instalacao
 from src.domain.models import DVR
+from src.infra.path_defaults import caminhos_padrao_para
 
 
 class InstalacaoFormDialog(QDialog):
@@ -193,7 +194,27 @@ class InstalacaoFormDialog(QDialog):
         if not nome:
             QMessageBox.warning(self, "Campo obrigatório", "Informe o nome da instalação.")
             return
+
+        # Auto-preenche caminhos vazios com defaults baseados no nome.
+        # Evita o WinError 3 (caminho '' não existe) ao rodar o checklist.
+        # Caminhos já preenchidos pelo usuário NÃO são sobrescritos.
+        self._auto_preencher_caminhos_vazios(nome)
+
         self.accept()
+
+    def _auto_preencher_caminhos_vazios(self, nome: str) -> None:
+        defaults = caminhos_padrao_para(nome)
+        pares = [
+            (self._base_dir,        defaults["base_dir"]),
+            (self._relatorios_dir,  defaults["relatorios_dir"]),
+            (self._logs_dir,        defaults["logs_dir"]),
+            (self._ffmpeg_path,     defaults["ffmpeg_path"]),
+            (self._playwright_path, defaults["playwright_path"]),
+            (self._error_img,       defaults["error_img"]),
+        ]
+        for field, padrao in pares:
+            if not field.text().strip():
+                field.setText(padrao)
 
     # ── API pública ───────────────────────────────────────────────────────────
 

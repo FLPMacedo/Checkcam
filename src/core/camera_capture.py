@@ -25,6 +25,14 @@ def capturar_cameras(
     """
     _log = on_log or print
 
+    if not config.base_dir:
+        raise ValueError(
+            "config.base_dir está vazio. "
+            "Edite a instalação na UI e preencha 'Dir. câmeras (base)'. "
+            "Sem isso, as imagens das câmeras seriam salvas no diretório "
+            "atual em vez do projeto."
+        )
+
     _log("\n🎥 CAPTURANDO IMAGENS DAS CÂMERAS")
 
     for dvr in dvrs:
