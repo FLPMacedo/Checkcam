@@ -235,3 +235,15 @@ class TestLayoutFlexivel:
         ws = wb["DVR_4"]
 
         assert len(ws.row_breaks.brk) == 0
+
+    def test_checklist_define_margens_estreitas(self, app_config, error_jpg):
+        """Margens estreitas (0.25") em todos os lados — mais espaço pra imagem."""
+        dvr = _dvr_com_n_cameras(4, str(error_jpg), "DVR_M")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+        ws = wb["DVR_M"]
+
+        assert ws.page_margins.top    == excel_builder.PAGE_MARGIN_INCHES
+        assert ws.page_margins.bottom == excel_builder.PAGE_MARGIN_INCHES
+        assert ws.page_margins.left   == excel_builder.PAGE_MARGIN_INCHES
+        assert ws.page_margins.right  == excel_builder.PAGE_MARGIN_INCHES

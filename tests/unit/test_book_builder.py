@@ -140,15 +140,30 @@ def test_book_orientacao_paisagem(app_config, error_jpg):
     assert ws.page_setup.orientation == "landscape"
 
 
+def test_book_define_margens_estreitas(app_config, error_jpg):
+    """Margens estreitas (0.25") liberam espaço útil pra imagem maior."""
+    dvr = _dvr_com_cameras("DVR_M", str(error_jpg), 1)
+    result = book_builder.gerar_book_excel([dvr], app_config)
+    wb = load_workbook(result)
+    ws = wb.active
+
+    # 0.25 inches em todos os lados
+    assert ws.page_margins.top    == book_builder.PAGE_MARGIN_INCHES
+    assert ws.page_margins.bottom == book_builder.PAGE_MARGIN_INCHES
+    assert ws.page_margins.left   == book_builder.PAGE_MARGIN_INCHES
+    assert ws.page_margins.right  == book_builder.PAGE_MARGIN_INCHES
+
+
 def test_book_altura_de_cada_pagina_cabe_em_landscape_a4(app_config, error_jpg):
     """Regressão: o conteúdo alocado para UMA câmera precisa caber em
-    uma página landscape A4 (~487pt depois das margens default).
+    uma página landscape A4 com as margens definidas pelo book_builder.
 
     Sem isso, o Excel quebra a página AUTOMATICAMENTE no meio do conteúdo,
     cortando a imagem e empurrando o resto para a página seguinte —
     independente das quebras manuais que adicionarmos."""
-    # Espaço útil em landscape A4 com margens default (0.75" × 2 = 108pt)
-    MAX_HEIGHT_PT = 487
+    # Espaço útil = altura A4 paisagem (595pt) - margens (top + bottom)
+    margens_pt = book_builder.PAGE_MARGIN_INCHES * 72 * 2
+    MAX_HEIGHT_PT = 595 - margens_pt
 
     dvr = _dvr_com_cameras("DVR_HT", str(error_jpg), 2)
     result = book_builder.gerar_book_excel([dvr], app_config)
@@ -168,5 +183,5 @@ def test_book_altura_de_cada_pagina_cabe_em_landscape_a4(app_config, error_jpg):
 
     assert total_pt <= MAX_HEIGHT_PT, (
         f"Conteúdo de uma página ({total_pt:.0f}pt) excede landscape A4 "
-        f"({MAX_HEIGHT_PT}pt) — Excel vai quebrar no meio da imagem"
+        f"({MAX_HEIGHT_PT:.0f}pt) — Excel vai quebrar no meio da imagem"
     )

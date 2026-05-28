@@ -33,23 +33,28 @@ from src.domain.models import DVR
 from src.infra.app_config import AppConfig
 from src.reports.excel_builder import _slug_instalacao
 
+# ── Margens da página (estreitas para liberar espaço pra imagem) ──────────────
+# Default do Excel: 0.75" top/bottom, 0.70" left/right.
+# Com 0.25" em todos os lados, ganhamos ~72pt vertical e horizontal.
+PAGE_MARGIN_INCHES = 0.25
+HEADER_FOOTER_MARGIN_INCHES = 0.1   # para o cabeçalho/rodapé do print
+
 # ── Dimensões da imagem em cada página do book (paisagem A4) ──────────────────
-# A4 paisagem ≈ 842 × 595 pt; espaço útil após margens default (0.75" × 2)
-#   ≈ 734 × 487 pt. Tudo precisa caber em 487pt VERTICAIS, senão o Excel
-#   quebra a página NO MEIO da imagem.
+# A4 paisagem ≈ 842 × 595 pt; com margens estreitas (0.25" × 2 = 36pt):
+#   útil ≈ 806 × 559 pt vertical.
 #
-# 800 × 500 px = 600 × 375 pt na renderização (mantém ratio 1.6 como o checklist).
-BOOK_IMG_W = 800
-BOOK_IMG_H = 500
+# 1000 × 625 px = 750 × 469 pt na renderização (mantém ratio 1.6 como o checklist).
+BOOK_IMG_W = 1000
+BOOK_IMG_H = 625
 
 # ── Layout de cada "página" do book em rows do Excel ──────────────────────────
-# Soma das alturas precisa ser <= 487pt:
-#   título(28) + spacer(15) + 18 rows × 22pt(396) + 2 buffer × 15pt(30) = 469pt  ✓
+# Soma das alturas precisa ser <= 559pt (espaço útil em A4 paisagem c/ 0.25"):
+#   título(28) + spacer(15) + 22 rows × 22pt(484) + 2 buffer × 15pt(30) = 557pt  ✓
 TITULO_ROW          = 1     # cabeçalho da câmera
 SPACER_APOS_TITULO  = 1     # linha em branco
 IMG_ROW_OFFSET      = 2     # imagem começa em (page_start + 2)
-LINHAS_PARA_IMAGEM  = 18    # 18 × 22pt = 396pt — cabe imagem de 375pt (500px)
-ROWS_POR_PAGINA     = 22    # total reservado por câmera (cabe em landscape A4)
+LINHAS_PARA_IMAGEM  = 22    # 22 × 22pt = 484pt — cabe imagem de 469pt (625px)
+ROWS_POR_PAGINA     = 26    # total reservado por câmera (cabe em landscape A4)
 
 # Quantidade de colunas largas (acomoda a imagem horizontalmente)
 COLS_BOOK = list("ABCDEFGHIJKLMN")  # 14 colunas
@@ -92,6 +97,14 @@ def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
     ws.print_options.horizontalCentered = True
     ws.print_options.verticalCentered = True
     ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    # Margens estreitas — libera espaço pra imagem maior
+    ws.page_margins.left   = PAGE_MARGIN_INCHES
+    ws.page_margins.right  = PAGE_MARGIN_INCHES
+    ws.page_margins.top    = PAGE_MARGIN_INCHES
+    ws.page_margins.bottom = PAGE_MARGIN_INCHES
+    ws.page_margins.header = HEADER_FOOTER_MARGIN_INCHES
+    ws.page_margins.footer = HEADER_FOOTER_MARGIN_INCHES
 
     # Coleta todas as câmeras de todos os DVRs, em sequência
     cameras_planas: List[tuple] = [

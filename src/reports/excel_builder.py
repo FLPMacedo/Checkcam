@@ -28,6 +28,12 @@ NAME_OFFSET_LARGO = 8
 BLOCK_HEIGHT_LARGO = 11
 COLS_LARGO = ["A", "E"]
 
+# ── Margens estreitas — libera espaço pra imagem maior ─────────────────────
+# Default do Excel: 0.75" top/bottom, 0.70" left/right.
+# Com 0.25" ganhamos ~72pt vertical e horizontal por página.
+PAGE_MARGIN_INCHES = 0.25
+HEADER_FOOTER_MARGIN_INCHES = 0.1
+
 # Caracteres proibidos em nomes de arquivo no Windows (NTFS): / \ : * ? " < > |
 _CHARS_INVALIDOS = re.compile(r'[\\/:*?"<>|]')
 
@@ -121,6 +127,14 @@ def gerar_excel(dvrs: List[DVR], config: AppConfig) -> str:
 
     for dvr in dvrs:
         ws = wb.create_sheet(dvr.nome[:31])
+
+        # ── Margens estreitas ──
+        ws.page_margins.left   = PAGE_MARGIN_INCHES
+        ws.page_margins.right  = PAGE_MARGIN_INCHES
+        ws.page_margins.top    = PAGE_MARGIN_INCHES
+        ws.page_margins.bottom = PAGE_MARGIN_INCHES
+        ws.page_margins.header = HEADER_FOOTER_MARGIN_INCHES
+        ws.page_margins.footer = HEADER_FOOTER_MARGIN_INCHES
 
         # ── Título ──
         ws.merge_cells("A1:H1")
