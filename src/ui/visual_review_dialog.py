@@ -58,7 +58,9 @@ class VisualReviewDialog(QDialog):
 
     Aguarda input do teclado:
         1 → OK            3 → DISTORCIDA              5 → NAO_RECONHECIDA
-        2 → EMBAÇADA_SUJA 4 → TONALIDADE_CLARA_ESCURA Q/Esc → interrompe
+        2 → EMBAÇADA_SUJA 4 → TONALIDADE_CLARA_ESCURA 6 → NAO_INSTALADA
+        0 / ← / Backspace → volta para a câmera anterior (corrigir clique errado)
+        Q / Esc → interrompe revisão
 
     Câmeras cuja imagem coincide com error_img são ignoradas.
     Câmeras cuja imagem não pode ser carregada recebem status "ERRO_IMAGEM".
@@ -186,6 +188,21 @@ class VisualReviewDialog(QDialog):
             linha.setTextFormat(Qt.TextFormat.RichText)
             layout.addWidget(linha)
 
+        # ── separador entre classificar e navegar ──
+        layout.addSpacing(16)
+        nav_header = QLabel("NAVEGAR")
+        nav_header.setStyleSheet(
+            f"font-size:10pt; color:{_MUTED}; letter-spacing:2px;"
+        )
+        layout.addWidget(nav_header)
+
+        voltar = QLabel(
+            f'<span style="color:{_ACCENT}; font-size:18pt; font-weight:bold;">0</span>'
+            f'  <span style="color:{_PANEL_FG}; font-size:10pt;">VOLTAR</span>'
+        )
+        voltar.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(voltar)
+
         layout.addStretch()
 
         rodape = QLabel(
@@ -258,6 +275,12 @@ class VisualReviewDialog(QDialog):
             self._cameras[self._idx].status = _STATUS_KEYS[key]
             self._idx += 1
             self._show_current()
+        elif key in (Qt.Key.Key_0, Qt.Key.Key_Left, Qt.Key.Key_Backspace):
+            # Volta para a câmera anterior (para corrigir uma classificação).
+            # Silenciosamente ignora se já estamos na primeira câmera.
+            if self._idx > 0:
+                self._idx -= 1
+                self._show_current()
         elif key in (Qt.Key.Key_Q, Qt.Key.Key_Escape):
             self.reject()
         else:

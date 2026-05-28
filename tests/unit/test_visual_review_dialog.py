@@ -183,3 +183,72 @@ def test_dialog_painel_de_hints_lista_a_opcao_6(qtbot, small_camera_jpg):
     # Deve mencionar a tecla 6 e a label "NÃO INSTALADA" (acentuada ou não)
     assert "6" in todos_textos
     assert "INSTALADA" in todos_textos.upper()
+
+
+# ─── Tecla 0: voltar para câmera anterior ────────────────────────────────────
+
+def test_dialog_tecla_0_volta_para_camera_anterior(qtbot, small_camera_jpg):
+    """Pressionar 0 retorna para a câmera anterior para corrigir classificação."""
+    cam1 = Camera(nome="C1", imagem=str(small_camera_jpg))
+    cam2 = Camera(nome="C2", imagem=str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam1, cam2], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    # Classifica C1 como OK e avança para C2
+    qtbot.keyPress(dialog, Qt.Key.Key_1)
+    assert cam1.status == "OK"
+    assert "C2" in dialog.name_label.text()
+
+    # Volta para C1 com tecla 0
+    qtbot.keyPress(dialog, Qt.Key.Key_0)
+    assert "C1" in dialog.name_label.text()
+
+
+def test_dialog_tecla_0_na_primeira_camera_nao_quebra(qtbot, small_camera_jpg):
+    """Já estamos na 1ª câmera (idx=0); pressionar 0 não deve travar."""
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    qtbot.keyPress(dialog, Qt.Key.Key_0)
+
+    # Continua na primeira câmera
+    assert "C1" in dialog.name_label.text()
+
+
+def test_dialog_voltar_permite_reclassificar(qtbot, small_camera_jpg):
+    """Workflow real: classifica errado → volta → reclassifica corretamente."""
+    cam1 = Camera(nome="C1", imagem=str(small_camera_jpg))
+    cam2 = Camera(nome="C2", imagem=str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam1, cam2], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    # Classifica C1 errado (OK)
+    qtbot.keyPress(dialog, Qt.Key.Key_1)
+    assert cam1.status == "OK"
+
+    # Volta e reclassifica como EMBAÇADA
+    qtbot.keyPress(dialog, Qt.Key.Key_0)
+    qtbot.keyPress(dialog, Qt.Key.Key_2)
+    assert cam1.status == "EMBAÇADA_SUJA"
+
+    # Avançou para C2 normalmente
+    assert "C2" in dialog.name_label.text()
+
+
+def test_dialog_painel_de_hints_lista_o_voltar(qtbot, small_camera_jpg):
+    """Painel direito mostra 'VOLTAR' associado à tecla 0."""
+    from PySide6.QtWidgets import QLabel
+
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+
+    todos = " ".join(
+        child.text() for child in dialog.hints_panel.findChildren(QLabel)
+    )
+    assert "0" in todos
+    assert "VOLTAR" in todos.upper()
