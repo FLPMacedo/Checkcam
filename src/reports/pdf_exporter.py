@@ -20,8 +20,8 @@ def exportar_pdf(excel_path: str) -> str:
     wb = excel_app.Workbooks.Open(excel_path)
 
     for sheet in wb.Worksheets:
-        sheet.ResetAllPageBreaks()
-
+        # NÃO chamar sheet.ResetAllPageBreaks() — apaga as quebras de página
+        # que o excel_builder define para separar o bloco extra (17+ câmeras).
         last_row = sheet.UsedRange.Rows.Count
         sheet.PageSetup.PrintArea = f"$A$1:$H${last_row}"
 

@@ -19,9 +19,10 @@ class FakeWorksheet:
     def __init__(self):
         self.UsedRange = _FakeUsedRange()
         self.PageSetup = _FakePageSetup()
+        self.reset_page_breaks_calls = 0
 
     def ResetAllPageBreaks(self):
-        pass
+        self.reset_page_breaks_calls += 1
 
 
 class FakeWorkbook:

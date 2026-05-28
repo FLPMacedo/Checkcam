@@ -202,3 +202,36 @@ class TestLayoutFlexivel:
         wb = load_workbook(result)
         ws = wb["DVR_VAZIO"]
         assert len(ws._images) == 0
+
+    def test_18_cameras_tem_quebra_de_pagina_antes_do_bloco_largo(
+        self, app_config, error_jpg
+    ):
+        """Regressão: sem page-break explícito, o bloco largo era cortado pelo
+        Excel no meio da página (parte renderizada na pág 1 + parte na pág 2).
+        Forçar uma quebra de página garante que os extras saiam limpos."""
+        dvr = _dvr_com_n_cameras(18, str(error_jpg), "DVR_PB")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+        ws = wb["DVR_PB"]
+
+        # Deve ter exatamente 1 quebra de página (entre standard e wide)
+        assert len(ws.row_breaks.brk) == 1, \
+            f"Esperava 1 page-break, achei {len(ws.row_breaks.brk)}"
+
+    def test_16_cameras_sem_quebra_de_pagina(self, app_config, error_jpg):
+        """16 câmeras (só layout padrão) não precisam de quebra forçada."""
+        dvr = _dvr_com_n_cameras(16, str(error_jpg), "DVR_16NP")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+        ws = wb["DVR_16NP"]
+
+        assert len(ws.row_breaks.brk) == 0
+
+    def test_4_cameras_sem_quebra_de_pagina(self, app_config, error_jpg):
+        """DVRs pequenos não devem ganhar quebra de página."""
+        dvr = _dvr_com_n_cameras(4, str(error_jpg), "DVR_4")
+        result = excel_builder.gerar_excel([dvr], app_config)
+        wb = load_workbook(result)
+        ws = wb["DVR_4"]
+
+        assert len(ws.row_breaks.brk) == 0

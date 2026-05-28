@@ -8,6 +8,7 @@ from typing import List
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Font
+from openpyxl.worksheet.pagebreak import Break
 
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
@@ -153,8 +154,11 @@ def gerar_excel(dvrs: List[DVR], config: AppConfig) -> str:
         )
 
         if extras:
-            # Linha em branco separando blocos
-            next_row += 1
+            # Quebra de página obrigatória antes do bloco largo.
+            # Sem isso, o Excel corta as imagens grandes ao meio entre páginas
+            # (renderiza a parte de cima na pág 1 e a de baixo na pág 2).
+            ws.row_breaks.append(Break(id=next_row))
+
             _adicionar_grid(
                 ws, extras, row_start=next_row,
                 cols=COLS_LARGO,
