@@ -5,6 +5,29 @@ class _FakePageSetup:
     FitToPagesWide = 1
     FitToPagesTall = 1
     CenterHorizontally = False
+    CenterVertically = False
+
+
+class _FakeHPageBreaks:
+    """Coleciona as chamadas a HPageBreaks.Add para inspeção em testes."""
+    def __init__(self):
+        self.added: list[int] = []   # row numbers das quebras adicionadas
+
+    def Add(self, row_or_range):
+        # Aceita tanto Range quanto Rows; ambos têm .row_index no fake
+        row = getattr(row_or_range, "row_index", row_or_range)
+        self.added.append(int(row))
+
+
+class _FakeRow:
+    def __init__(self, row_index: int):
+        self.row_index = row_index
+
+
+class _FakeRowsAccessor:
+    """sheet.Rows(N) → _FakeRow(N), simulando o accessor do COM."""
+    def __call__(self, idx):
+        return _FakeRow(idx)
 
 
 class _FakeRows:
@@ -16,9 +39,14 @@ class _FakeUsedRange:
 
 
 class FakeWorksheet:
-    def __init__(self):
+    Name = "Sheet1"
+
+    def __init__(self, name: str = "Sheet1"):
+        self.Name = name
         self.UsedRange = _FakeUsedRange()
         self.PageSetup = _FakePageSetup()
+        self.HPageBreaks = _FakeHPageBreaks()
+        self.Rows = _FakeRowsAccessor()
         self.reset_page_breaks_calls = 0
 
     def ResetAllPageBreaks(self):

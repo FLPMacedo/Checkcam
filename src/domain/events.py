@@ -23,5 +23,7 @@ class ChecklistResult:
     dvrs: List[DVR] = field(default_factory=list)
     excel_path: str = ""
     pdf_path: str = ""
+    book_excel_path: str = ""   # xlsx do book (1 câmera por página)
+    book_path: str = ""         # PDF do book
     sucesso: bool = True
     erro: str = ""

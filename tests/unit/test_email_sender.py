@@ -69,3 +69,31 @@ def test_enviar_email_salva_backup_em_logs_dir(tmp_path, app_config, monkeypatch
     content = Path(backup_path).read_text(encoding="utf-8")
     assert "ASSUNTO:" in content
     assert "CORPO DO EMAIL:" in content
+
+
+def test_enviar_email_anexa_book_pdf_quando_fornecido(tmp_path, app_config, monkeypatch):
+    """Quando book_path é passado, ambos PDFs vão no anexo."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    pdf = _make_pdf(tmp_path)
+    book = str(tmp_path / "book.pdf")
+    open(book, "wb").close()
+
+    email_sender.enviar_email(_make_dvrs(), pdf, app_config, book_path=book)
+
+    anexos = fake_client.outlook.last_mail.Attachments.paths
+    assert len(anexos) == 2
+    assert any("relatorio.pdf" in a for a in anexos)
+    assert any("book.pdf" in a for a in anexos)
+
+
+def test_enviar_email_sem_book_anexa_so_o_pdf_principal(tmp_path, app_config, monkeypatch):
+    """Backwards compat: chamar sem book_path mantém só 1 anexo."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(_make_dvrs(), _make_pdf(tmp_path), app_config)
+
+    anexos = fake_client.outlook.last_mail.Attachments.paths
+    assert len(anexos) == 1

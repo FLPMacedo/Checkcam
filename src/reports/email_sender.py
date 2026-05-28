@@ -158,12 +158,29 @@ TI
 
 # ─── Envio ─────────────────────────────────────────────────────────────────────
 
-def enviar_email(dvrs: List[DVR], pdf_path: str, config: AppConfig) -> str:
+def enviar_email(
+    dvrs: List[DVR],
+    pdf_path: str,
+    config: AppConfig,
+    book_path: str = "",
+) -> str:
     """
     Compõe o e-mail de checklist, grava backup em config.logs_dir e envia
-    via Outlook. Retorna o caminho do arquivo de backup.
+    via Outlook.
+
+    Args:
+        dvrs:      DVRs do checklist (gera o corpo do e-mail)
+        pdf_path:  PDF do Checklist principal (sempre anexado)
+        config:    config da instalação (emails, paths)
+        book_path: PDF do Book (opcional — quando passado, vai como 2º anexo)
+
+    Retorna o caminho do arquivo de backup gravado em config.logs_dir.
     """
     assunto, corpo = _compor(dvrs, config)
+
+    anexos = [os.path.abspath(pdf_path)]
+    if book_path:
+        anexos.append(os.path.abspath(book_path))
 
     # ── Backup em disco ──
     os.makedirs(config.logs_dir, exist_ok=True)
@@ -178,8 +195,10 @@ def enviar_email(dvrs: List[DVR], pdf_path: str, config: AppConfig) -> str:
         f.write(assunto + "\n\n")
         f.write("DESTINATÁRIOS:\n")
         f.write(";".join(config.emails) + "\n\n")
-        f.write("ANEXO:\n")
-        f.write(os.path.abspath(pdf_path) + "\n\n")
+        f.write("ANEXOS:\n")
+        for a in anexos:
+            f.write(a + "\n")
+        f.write("\n")
         f.write("CORPO DO EMAIL:\n")
         f.write(corpo + "\n")
 
@@ -189,7 +208,8 @@ def enviar_email(dvrs: List[DVR], pdf_path: str, config: AppConfig) -> str:
     mail.To = ";".join(config.emails)
     mail.Subject = assunto
     mail.Body = corpo
-    mail.Attachments.Add(os.path.abspath(pdf_path))
+    for caminho in anexos:
+        mail.Attachments.Add(caminho)
     mail.Send()
 
     return arquivo_backup

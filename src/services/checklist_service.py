@@ -8,6 +8,7 @@ from src.core.visual_review import analisar_visual
 from src.domain.events import ChecklistResult, ProgressEvent
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
+from src.reports.book_builder import gerar_book_excel
 from src.reports.email_sender import enviar_email
 from src.reports.excel_builder import gerar_excel
 from src.reports.pdf_exporter import exportar_pdf
@@ -19,13 +20,19 @@ _VisualFn = Callable[[List[DVR], str], List[DVR]]
 class ChecklistService:
     """
     Orquestra o pipeline completo de checklist:
-      HD → Captura → Visual → Excel → PDF → E-mail.
+      HD → Captura → Visual → Excel/PDF → Book PDF → E-mail.
 
     Emite um ProgressEvent via on_progress antes de cada etapa.
 
     O parâmetro visual_review_fn permite injetar uma implementação alternativa
     de revisão visual (ex.: QDialog em vez de cv2). Se omitido, usa a versão
     cv2 padrão (analisar_visual).
+
+    Dois PDFs são gerados a cada execução:
+      - Checklist: grid 4×N (ou 4×N + 2×N largo para 17+ câmeras)
+      - Book:     uma câmera por página, imagem grande para inspeção detalhada
+
+    Ambos vão como anexo no e-mail final.
     """
 
     def __init__(
@@ -65,7 +72,17 @@ class ChecklistService:
         excel_path = gerar_excel(dvrs, self._config)
         pdf_path = exportar_pdf(excel_path)
 
-        self._emit("EMAIL", "Enviando e-mail...")
-        enviar_email(dvrs, pdf_path, self._config)
+        self._emit("BOOK", "Gerando book PDF (1 câmera por página)...")
+        book_excel_path = gerar_book_excel(dvrs, self._config)
+        book_path = exportar_pdf(book_excel_path)
 
-        return ChecklistResult(dvrs=dvrs, excel_path=excel_path, pdf_path=pdf_path)
+        self._emit("EMAIL", "Enviando e-mail...")
+        enviar_email(dvrs, pdf_path, self._config, book_path=book_path)
+
+        return ChecklistResult(
+            dvrs=dvrs,
+            excel_path=excel_path,
+            pdf_path=pdf_path,
+            book_excel_path=book_excel_path,
+            book_path=book_path,
+        )
