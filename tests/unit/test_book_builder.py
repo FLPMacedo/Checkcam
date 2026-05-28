@@ -194,3 +194,27 @@ def test_book_sem_quebras_de_pagina_internas(app_config, small_camera_jpg):
         assert len(breaks) == 0, (
             f"Sheet {ws.title!r} tem {len(breaks)} page-breaks (esperava 0)"
         )
+
+
+def test_book_titulo_e_imagem_cabem_na_largura_da_pagina(app_config, small_camera_jpg):
+    """Regressão: 'NO VIDEO' saía cortado porque o merge do título (A:N = 14 cols)
+    + imagem 1000px estouravam a largura útil da landscape A4 (~1075px).
+
+    Critério: largura total das colunas usadas em pt deve caber em landscape A4
+    descontando as margens (806pt útil)."""
+    PAGE_WIDTH_PT_UTIL = 842 - (book_builder.PAGE_MARGIN_INCHES * 72 * 2)
+
+    dvr = _dvr_com_cameras("DVR_W", str(small_camera_jpg), 1)
+    result = book_builder.gerar_book_excel([dvr], app_config)
+    wb = load_workbook(result)
+    ws = wb.worksheets[0]
+
+    # Soma das larguras das colunas usadas (em char-widths × ~5.25 pt-per-cw)
+    total_pt = sum(
+        ws.column_dimensions[col].width * 5.25
+        for col in book_builder.COLS_BOOK
+    )
+    assert total_pt <= PAGE_WIDTH_PT_UTIL, (
+        f"Largura total das colunas ({total_pt:.0f}pt) excede landscape A4 "
+        f"útil ({PAGE_WIDTH_PT_UTIL:.0f}pt) — vai cortar lateralmente"
+    )

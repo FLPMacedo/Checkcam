@@ -183,10 +183,15 @@ def _sheet_name_extra(dvr_nome: str) -> str:
 
 
 def _aplicar_pagesetup(ws) -> None:
-    """Margens estreitas + paisagem + fit-to-width — aplicado em cada sheet."""
+    """Margens estreitas + paisagem + fit-to-1-page — aplicado em cada sheet.
+
+    fitToHeight=1 garante que cada sheet caiba em exatamente 1 página
+    (Excel escala o conteúdo se for muito alto). Combinado com a estratégia
+    de "1 sheet por seção", garante 1 página por seção no PDF final.
+    """
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
+    ws.page_setup.fitToHeight = 1
     ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.print_options.horizontalCentered = True
     ws.print_options.verticalCentered = True

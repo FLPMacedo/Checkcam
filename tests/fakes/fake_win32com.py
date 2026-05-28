@@ -78,6 +78,8 @@ class FakeExcelApp:
     def __init__(self, workbook=None):
         self.Visible = True
         self.DisplayAlerts = True
+        self.ScreenUpdating = True
+        self.EnableEvents = True
         self._wb = workbook or FakeWorkbook()
         self.Workbooks = _FakeWorkbooks(self._wb)
 

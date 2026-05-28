@@ -54,8 +54,11 @@ LINHAS_PARA_IMAGEM = 22    # 22 × 22pt = 484pt (cabe 469pt da imagem)
 ALTURA_ROW_IMG     = 22
 ALTURA_ROW_TITULO  = 28
 
-# Colunas largas para acomodar a imagem (~1000 px de largura)
-COLS_BOOK = list("ABCDEFGHIJKLMN")  # 14 colunas
+# Colunas para acomodar a imagem (~1000 px de largura).
+# A:L = 12 colunas × 12 char-widths × 5.25 pt-per-cw = 756pt < 806pt útil ✓
+# Mais que isso estoura a landscape A4 e o lado direito é cortado (inclusive
+# o final do título).
+COLS_BOOK = list("ABCDEFGHIJKL")  # 12 colunas (A:L)
 
 
 def gerar_book_excel(dvrs: List[DVR], config: AppConfig) -> str:
@@ -151,7 +154,8 @@ def _aplicar_larguras(ws) -> None:
 def _renderizar_camera(ws, dvr: DVR, cam: Camera) -> None:
     """Desenha título + imagem em uma sheet dedicada a uma câmera."""
     # ── Título ──
-    ws.merge_cells(f"A{TITULO_ROW}:N{TITULO_ROW}")
+    # Merge até a última coluna definida em COLS_BOOK (12 = L), não 14.
+    ws.merge_cells(f"A{TITULO_ROW}:{COLS_BOOK[-1]}{TITULO_ROW}")
     ws[f"A{TITULO_ROW}"] = f"{dvr.nome}  -  {cam.nome}  -  {cam.status}"
     ws[f"A{TITULO_ROW}"].font = Font(size=14, bold=True)
     ws[f"A{TITULO_ROW}"].alignment = Alignment(horizontal="center", vertical="center")

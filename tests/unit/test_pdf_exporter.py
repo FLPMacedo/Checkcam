@@ -77,17 +77,23 @@ def test_exportar_pdf_reaplica_breaks_do_xlsx_via_com(tmp_path, monkeypatch):
         f"Esperava HPageBreaks.Add(28), recebi {sheet_alvo.HPageBreaks.added}"
 
 
-def test_exportar_pdf_centraliza_verticalmente(tmp_path, monkeypatch):
-    """As 2 câmeras IP extras (bloco largo) ficavam no rodapé da página 2 —
-    com CenterVertically=True elas ficam centralizadas verticalmente."""
+def test_exportar_pdf_nao_faz_loop_de_pagesetup_quando_xlsx_sem_breaks(
+    tmp_path, monkeypatch
+):
+    """PERF: o page setup ja foi setado pelo builder via openpyxl. Se o xlsx
+    nao tem page-breaks manuais para re-aplicar, o pdf_exporter NAO deve
+    iterar sheets (~1500 chamadas COM com 214 sheets = vários segundos)."""
     from tests.fakes.fake_win32com import FakeWorksheet, FakeWorkbook, _FakeWorkbooks
 
-    sheet_alvo = FakeWorksheet()
-    wb_fake = FakeWorkbook(worksheets=[sheet_alvo])
+    # Criamos várias sheets fake para simular o cenário de stress (214 cams)
+    sheets = [FakeWorksheet(name=f"S{i}") for i in range(50)]
+    wb_fake = FakeWorkbook(worksheets=sheets)
 
     class _ExcelAppComWb:
         Visible = True
         DisplayAlerts = True
+        ScreenUpdating = True
+        EnableEvents = True
 
         def __init__(self):
             self.Workbooks = _FakeWorkbooks(wb_fake)
@@ -99,11 +105,69 @@ def test_exportar_pdf_centraliza_verticalmente(tmp_path, monkeypatch):
     monkeypatch.setattr(pdf_exporter, "win32com", FakeWin32ComModule(fake_client))
 
     excel_path = str(tmp_path / "relatorio.xlsx")
+    _criar_xlsx_real(excel_path)   # SEM page-breaks no xlsx
+
+    pdf_exporter.exportar_pdf(excel_path)
+
+    # Nenhuma sheet deve ter sido tocada (ResetAllPageBreaks ou HPageBreaks.Add)
+    # quando o xlsx nao tem page-breaks
+    for sheet in sheets:
+        assert sheet.reset_page_breaks_calls == 0
+        assert sheet.HPageBreaks.added == []
+
+
+def test_exportar_pdf_desliga_screen_updating_para_acelerar(tmp_path, monkeypatch):
+    """PERF: ScreenUpdating=False e EnableEvents=False aceleram operacoes COM
+    em workbooks com muitas sheets."""
+    from tests.fakes.fake_win32com import FakeWorksheet, FakeWorkbook, _FakeWorkbooks
+
+    setado = {"screen_updating": [], "enable_events": []}
+
+    class _TrackingExcelApp:
+        Visible = True
+        DisplayAlerts = True
+        _screen_updating = True
+        _enable_events = True
+
+        @property
+        def ScreenUpdating(self):
+            return self._screen_updating
+
+        @ScreenUpdating.setter
+        def ScreenUpdating(self, value):
+            self._screen_updating = value
+            setado["screen_updating"].append(value)
+
+        @property
+        def EnableEvents(self):
+            return self._enable_events
+
+        @EnableEvents.setter
+        def EnableEvents(self, value):
+            self._enable_events = value
+            setado["enable_events"].append(value)
+
+        def __init__(self):
+            self._wb = FakeWorkbook(worksheets=[FakeWorksheet()])
+            self.Workbooks = _FakeWorkbooks(self._wb)
+
+        def Quit(self):
+            pass
+
+    fake_client = FakeWin32ComClient(excel_app=_TrackingExcelApp())
+    monkeypatch.setattr(pdf_exporter, "win32com", FakeWin32ComModule(fake_client))
+
+    excel_path = str(tmp_path / "relatorio.xlsx")
     _criar_xlsx_real(excel_path)
 
     pdf_exporter.exportar_pdf(excel_path)
 
-    assert sheet_alvo.PageSetup.CenterVertically is True
+    assert False in setado["screen_updating"], (
+        "ScreenUpdating nao foi desligado"
+    )
+    assert False in setado["enable_events"], (
+        "EnableEvents nao foi desligado"
+    )
 
 
 def test_exportar_pdf_fecha_workbook_e_encerra_excel(tmp_path, monkeypatch):
