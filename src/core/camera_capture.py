@@ -34,7 +34,12 @@ def capturar_cameras(
             _log("   ⛔ DVR OFFLINE – câmeras ignoradas")
             for i in range(1, dvr.qtd_cameras + 1):
                 dvr.cameras.append(
-                    Camera(nome=f"C{i}", imagem=config.error_img, status="NAO_ANALISADO")
+                    Camera(
+                        nome=f"C{i}",
+                        imagem=config.error_img,
+                        status="NAO_ANALISADO",
+                        dvr_nome=dvr.nome,
+                    )
                 )
             continue
 
@@ -65,17 +70,34 @@ def capturar_cameras(
                 )
 
                 if os.path.exists(img_path) and os.path.getsize(img_path) > 10000:
-                    dvr.cameras.append(Camera(nome=cam_nome, imagem=img_path, status="PENDENTE"))
+                    dvr.cameras.append(
+                        Camera(
+                            nome=cam_nome,
+                            imagem=img_path,
+                            status="PENDENTE",
+                            dvr_nome=dvr.nome,
+                        )
+                    )
                     _log(f"   🎥 {cam_nome} ... OK")
                 else:
                     dvr.cameras.append(
-                        Camera(nome=cam_nome, imagem=config.error_img, status="SEM_CONEXAO")
+                        Camera(
+                            nome=cam_nome,
+                            imagem=config.error_img,
+                            status="SEM_CONEXAO",
+                            dvr_nome=dvr.nome,
+                        )
                     )
                     _log(f"   🎥 {cam_nome} ... SEM CONEXÃO")
 
             except subprocess.TimeoutExpired:
                 dvr.cameras.append(
-                    Camera(nome=cam_nome, imagem=config.error_img, status="SEM_CONEXAO")
+                    Camera(
+                        nome=cam_nome,
+                        imagem=config.error_img,
+                        status="SEM_CONEXAO",
+                        dvr_nome=dvr.nome,
+                    )
                 )
                 _log(f"   🎥 {cam_nome} ... TIMEOUT")
 

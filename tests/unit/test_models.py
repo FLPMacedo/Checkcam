@@ -40,6 +40,16 @@ def test_camera_imagem_padrao_e_string_vazia():
     assert cam.imagem == ""
 
 
+def test_camera_dvr_nome_padrao_vazio():
+    cam = Camera(nome="C1")
+    assert cam.dvr_nome == ""
+
+
+def test_camera_aceita_dvr_nome():
+    cam = Camera(nome="C1", dvr_nome="PN ADM1")
+    assert cam.dvr_nome == "PN ADM1"
+
+
 # ─── DVR ─────────────────────────────────────────────────────────────────────
 
 def test_dvr_hd_inicializa_com_defaults():

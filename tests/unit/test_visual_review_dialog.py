@@ -132,3 +132,54 @@ def test_dialog_exibe_contador_separado_do_nome(qtbot, small_camera_jpg):
     # Contador mostra "1/2" (estamos na primeira câmera de 2)
     txt = dialog.counter_label.text()
     assert "1" in txt and "2" in txt
+
+
+def test_dialog_exibe_dvr_nome_no_painel_lateral(qtbot, small_camera_jpg):
+    """Painel lateral mostra o DVR a que a câmera pertence (PN ADM1)."""
+    cam = Camera(nome="C5", imagem=str(small_camera_jpg), dvr_nome="PN ADM1")
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    assert "PN ADM1" in dialog.dvr_label.text()
+    assert "C5" in dialog.name_label.text()
+
+
+def test_dialog_titulo_da_janela_inclui_dvr_e_camera(qtbot, small_camera_jpg):
+    """windowTitle: 'Revisão Visual – PN ADM1 / C5'."""
+    cam = Camera(nome="C5", imagem=str(small_camera_jpg), dvr_nome="PN ADM1")
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+    qtbot.wait(50)
+
+    titulo = dialog.windowTitle()
+    assert "PN ADM1" in titulo
+    assert "C5" in titulo
+
+
+def test_dialog_tecla_6_marca_como_nao_instalada(qtbot, small_camera_jpg):
+    """Nova classificação: tecla 6 → NAO_INSTALADA (sem alerta no e-mail)."""
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+
+    qtbot.keyPress(dialog, Qt.Key.Key_6)
+
+    assert cam.status == "NAO_INSTALADA"
+
+
+def test_dialog_painel_de_hints_lista_a_opcao_6(qtbot, small_camera_jpg):
+    """A 6ª opção 'NÃO INSTALADA' deve aparecer no painel direito."""
+    from PySide6.QtWidgets import QLabel
+
+    cam = _cam(str(small_camera_jpg))
+    dialog = VisualReviewDialog([cam], "outro_error.jpg")
+    qtbot.addWidget(dialog)
+
+    # Junta todo o texto dos QLabel children do hints_panel
+    todos_textos = " ".join(
+        child.text() for child in dialog.hints_panel.findChildren(QLabel)
+    )
+    # Deve mencionar a tecla 6 e a label "NÃO INSTALADA" (acentuada ou não)
+    assert "6" in todos_textos
+    assert "INSTALADA" in todos_textos.upper()

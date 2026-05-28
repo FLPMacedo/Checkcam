@@ -76,3 +76,31 @@ def test_ffmpeg_timeout_retorna_sem_conexao(app_config, monkeypatch):
 
     assert cam.status == "SEM_CONEXAO"
     assert cam.imagem == app_config.error_img
+
+
+def test_cada_camera_capturada_sabe_seu_dvr_nome(app_config, small_camera_jpg, monkeypatch):
+    """Regressão: a câmera precisa carregar o nome do DVR a que pertence
+    para o VisualReviewDialog poder exibir 'DVR PN_ADM1 / C5'."""
+    from pathlib import Path
+    import shutil
+
+    dvr = _make_online_dvr(nome="PN_ADM1", qtd=2)
+    pasta = Path(app_config.base_dir) / dvr.nome
+    pasta.mkdir(parents=True, exist_ok=True)
+    shutil.copy(small_camera_jpg, pasta / "C1.jpg")
+    shutil.copy(small_camera_jpg, pasta / "C2.jpg")
+
+    monkeypatch.setattr("subprocess.run", make_fake_run(returncode=0))
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    for cam in result[0].cameras:
+        assert cam.dvr_nome == "PN_ADM1", f"Camera {cam.nome} sem dvr_nome"
+
+
+def test_dvr_offline_cameras_tambem_tem_dvr_nome(app_config):
+    """Mesmo em DVR offline, as câmeras placeholder devem ter dvr_nome
+    (caso o usuário ainda queira ver de qual DVR são no diálogo)."""
+    dvrs = [_make_offline_dvr(nome="DVR_OFF_X", qtd=3)]
+    result = camera_capture.capturar_cameras(dvrs, app_config)
+    for cam in result[0].cameras:
+        assert cam.dvr_nome == "DVR_OFF_X"

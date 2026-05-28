@@ -20,6 +20,7 @@ _STATUS_KEYS: dict[Qt.Key, str] = {
     Qt.Key.Key_3: "DISTORCIDA",
     Qt.Key.Key_4: "TONALIDADE_CLARA_ESCURA",
     Qt.Key.Key_5: "NAO_RECONHECIDA",
+    Qt.Key.Key_6: "NAO_INSTALADA",
 }
 
 # Texto curto que aparece no painel lateral direito, para cada tecla
@@ -29,6 +30,7 @@ _HINT_LABELS = [
     ("3", "DISTORCIDA"),
     ("4", "TONALIDADE"),
     ("5", "NÃO RECONHECIDA"),
+    ("6", "NÃO INSTALADA"),
 ]
 
 _PANEL_BG = "#1a1a1a"
@@ -125,6 +127,22 @@ class VisualReviewDialog(QDialog):
         )
         layout.addWidget(self.name_label)
 
+        # ── separador visual ──
+        layout.addSpacing(18)
+
+        sub_dvr = QLabel("DVR")
+        sub_dvr.setStyleSheet(
+            f"font-size:9pt; color:{_MUTED}; letter-spacing:2px;"
+        )
+        layout.addWidget(sub_dvr)
+
+        self.dvr_label = QLabel("—")
+        self.dvr_label.setWordWrap(True)
+        self.dvr_label.setStyleSheet(
+            f"font-size:11pt; color:{_PANEL_FG};"
+        )
+        layout.addWidget(self.dvr_label)
+
         layout.addStretch()
         return self.info_panel
 
@@ -192,7 +210,13 @@ class VisualReviewDialog(QDialog):
             f"{self._idx + 1}/{len(self._cameras)}"
         )
         self.name_label.setText(cam.nome)
-        self.setWindowTitle(f"Revisão Visual – {cam.nome}")
+        self.dvr_label.setText(cam.dvr_nome or "—")
+
+        # Título da janela: 'Revisão Visual – PN ADM1 / C5'
+        if cam.dvr_nome:
+            self.setWindowTitle(f"Revisão Visual – {cam.dvr_nome} / {cam.nome}")
+        else:
+            self.setWindowTitle(f"Revisão Visual – {cam.nome}")
 
         pixmap = QPixmap(cam.imagem)
 

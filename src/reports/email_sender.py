@@ -23,6 +23,7 @@ def _compor(dvrs: List[DVR], config: AppConfig) -> Tuple[str, str]:
     cameras_ok = 0
     cameras_alerta = 0
     cameras_sem_conexao = 0
+    cameras_nao_instaladas = 0
 
     dvrs_hd_problema: List[str] = []
     resumo_cameras: List[str] = []
@@ -49,6 +50,11 @@ def _compor(dvrs: List[DVR], config: AppConfig) -> Tuple[str, str]:
 
             if cam.status == "OK":
                 cameras_ok += 1
+            elif cam.status == "NAO_INSTALADA":
+                # Câmera marcada manualmente como inexistente fisicamente.
+                # NÃO conta como alerta nem entra no resumo de problemas —
+                # é só uma contagem informativa.
+                cameras_nao_instaladas += 1
             elif cam.status == "SEM_CONEXAO":
                 cameras_sem_conexao += 1
                 tem_dvr_sem_conexao = True
@@ -86,6 +92,7 @@ referente à data de hoje ({hoje}).
 - Câmeras OK: {cameras_ok}
 - Câmeras com alerta: {cameras_alerta}
 - Câmeras sem conexão: {cameras_sem_conexao}
+- Câmeras não instaladas: {cameras_nao_instaladas}
 """
 
     if dvrs_hd_problema:

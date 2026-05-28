@@ -97,3 +97,60 @@ def test_enviar_email_sem_book_anexa_so_o_pdf_principal(tmp_path, app_config, mo
 
     anexos = fake_client.outlook.last_mail.Attachments.paths
     assert len(anexos) == 1
+
+
+# ─── Status NAO_INSTALADA: não é alerta ──────────────────────────────────────
+
+def test_email_nao_inclui_camera_nao_instalada_no_resumo_de_alerta(
+    tmp_path, app_config, monkeypatch
+):
+    """Câmera marcada como NAO_INSTALADA não é problema — não deve aparecer
+    no resumo 'CÂMERAS COM ALERTA IDENTIFICADO'."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(cam_statuses=["OK", "NAO_INSTALADA"]),
+        _make_pdf(tmp_path),
+        app_config,
+    )
+
+    corpo = fake_client.outlook.last_mail.Body
+    # NAO_INSTALADA não deve aparecer como problema
+    assert "ALERTA" not in corpo or "C2" not in corpo.split("ALERTA")[-1]
+
+
+def test_email_lista_quantidade_de_cameras_nao_instaladas_no_resumo(
+    tmp_path, app_config, monkeypatch
+):
+    """Resumo geral deve incluir uma linha 'Câmeras não instaladas: N'."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(cam_statuses=["OK", "NAO_INSTALADA", "NAO_INSTALADA"]),
+        _make_pdf(tmp_path),
+        app_config,
+    )
+
+    corpo = fake_client.outlook.last_mail.Body
+    assert "não instalada" in corpo.lower()
+    # Conta 2 câmeras NAO_INSTALADA
+    assert "2" in corpo
+
+
+def test_email_assunto_normal_se_so_tem_ok_e_nao_instaladas(
+    tmp_path, app_config, monkeypatch
+):
+    """Apenas OK + NAO_INSTALADA não disparam o assunto de ATENÇÃO."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(cam_statuses=["OK", "NAO_INSTALADA"]),
+        _make_pdf(tmp_path),
+        app_config,
+    )
+
+    assunto = fake_client.outlook.last_mail.Subject
+    assert "ATENÇÃO HD" not in assunto

@@ -20,6 +20,7 @@ class Camera:
     nome: str
     imagem: str = ""
     status: str = "PENDENTE"
+    dvr_nome: str = ""    # nome do DVR ao qual pertence (para exibição na UI)
 
 
 @dataclass
