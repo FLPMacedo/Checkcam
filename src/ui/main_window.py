@@ -193,8 +193,22 @@ class MainWindow(QMainWindow):
         self._log("✅ Checklist concluído com sucesso!")
         self._log(f"   Excel : {result.excel_path}")
         self._log(f"   PDF   : {result.pdf_path}")
+        if result.book_path:
+            self._log(f"   Book  : {result.book_path}")
         self._log("─" * 60)
         self.btn_iniciar.setEnabled(True)
+
+        # Popup modal + fecha a janela ao confirmar — volta pra HomeWindow
+        anexos = [result.pdf_path]
+        if result.book_path:
+            anexos.append(result.book_path)
+        resumo = (
+            f"Checklist de {self._config.nome_instalacao} concluído!\n\n"
+            f"E-mail enviado para {len(self._config.emails)} destinatário(s)."
+            f"\n\nArquivos gerados:\n  " + "\n  ".join(anexos)
+        )
+        QMessageBox.information(self, "Checklist concluído", resumo)
+        self.close()
 
     def _on_error(self, msg: str) -> None:
         self._log(f"\n❌ Erro: {msg}")

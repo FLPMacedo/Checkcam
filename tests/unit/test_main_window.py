@@ -166,3 +166,65 @@ def test_on_visual_review_done_resume_worker(qtbot, app_config):
     w._on_visual_review_done(QDialog.DialogCode.Accepted)
 
     assert len(chamadas) == 1
+
+
+# ─── Fechamento automático após conclusão ────────────────────────────────────
+
+def test_on_finished_mostra_resumo_e_fecha_janela(qtbot, app_config, monkeypatch):
+    """Quando o pipeline termina (e-mail enviado), a janela deve fechar
+    automaticamente após o usuário confirmar o popup de sucesso."""
+    from PySide6.QtWidgets import QMessageBox
+    from src.domain.events import ChecklistResult
+
+    # Não bloqueia o teste no popup
+    popups_mostrados = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "information",
+        lambda *args, **kwargs: popups_mostrados.append((args, kwargs))
+        or QMessageBox.StandardButton.Ok,
+    )
+
+    # Spy no close()
+    closes = []
+    monkeypatch.setattr(
+        main_window.MainWindow, "close", lambda self: closes.append(True)
+    )
+
+    w = _window(qtbot, app_config)
+    result = ChecklistResult(
+        dvrs=_dvr(),
+        excel_path="C:/fake/checklist.xlsx",
+        pdf_path="C:/fake/checklist.pdf",
+        book_excel_path="C:/fake/book.xlsx",
+        book_path="C:/fake/book.pdf",
+    )
+    w._on_finished(result)
+
+    # Popup mostrado e janela fechada
+    assert len(popups_mostrados) == 1
+    assert len(closes) == 1
+
+
+def test_on_finished_loga_caminho_do_book(qtbot, app_config, monkeypatch):
+    """O caminho do book PDF deve aparecer no log junto com o checklist."""
+    from PySide6.QtWidgets import QMessageBox
+    from src.domain.events import ChecklistResult
+
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        lambda *a, **kw: QMessageBox.StandardButton.Ok,
+    )
+    monkeypatch.setattr(main_window.MainWindow, "close", lambda self: None)
+
+    w = _window(qtbot, app_config)
+    result = ChecklistResult(
+        dvrs=_dvr(),
+        excel_path="C:/fake/x.xlsx",
+        pdf_path="C:/fake/x.pdf",
+        book_path="C:/fake/book_xyz.pdf",
+    )
+    w._on_finished(result)
+
+    log_text = w.log_area.toPlainText()
+    assert "book_xyz.pdf" in log_text
