@@ -1,0 +1,3 @@
+# DVRs de teste — formato: nome;ip;qtd_cameras
+DVR_TESTE_A;192.168.1.100;4
+DVR_TESTE_B;192.168.1.101;2

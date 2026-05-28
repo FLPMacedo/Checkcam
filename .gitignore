@@ -1,0 +1,73 @@
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg
+MANIFEST
+
+# Ambiente virtual
+.venv/
+venv/
+env/
+ENV/
+
+# ─── Testes ──────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ─── IDE / editores ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Sistema operacional ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Runtime do CheckCam ─────────────────────────────────────────────────────
+# Banco SQLite (popular via `python scripts/seed_db.py`)
+*.db
+*.db-journal
+
+# Frames JPEG capturados + logs de email (gerados em runtime)
+data/
+
+# PDFs e XLSX gerados (saída do checklist)
+relatorios/
+
+# ─── Binários grandes ────────────────────────────────────────────────────────
+# Não versionar — documentar como obter no README:
+#   - ffmpeg: baixar de https://www.gyan.dev/ffmpeg/builds/ e extrair em assets/ffmpeg/
+#   - playwright: `playwright install chromium` apontando PLAYWRIGHT_BROWSERS_PATH para assets/playwright_browsers/
+assets/ffmpeg/
+assets/playwright_browsers/
+
+# Logs gerais (caso surjam)
+*.log

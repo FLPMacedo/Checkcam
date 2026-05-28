@@ -1,0 +1,3 @@
+# Destinatários de teste
+teste@exemplo.com
+outro@exemplo.com
