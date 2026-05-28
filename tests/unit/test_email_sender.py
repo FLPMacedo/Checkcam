@@ -45,7 +45,9 @@ def test_enviar_email_destinatarios_corretos(tmp_path, app_config, monkeypatch):
     assert "teste@exemplo.com" in fake_client.outlook.last_mail.To
 
 
-def test_enviar_email_assunto_alerta_hd_quando_offline(tmp_path, app_config, monkeypatch):
+def test_enviar_email_assunto_NAO_alerta_hd_quando_offline(tmp_path, app_config, monkeypatch):
+    """DVR offline NÃO é problema de HD — é problema de conexão.
+    O assunto não deve ter 'ATENÇÃO HD' só por causa de OFFLINE."""
     fake_client = FakeWin32ComClient()
     _patch_com(monkeypatch, fake_client)
 
@@ -53,7 +55,53 @@ def test_enviar_email_assunto_alerta_hd_quando_offline(tmp_path, app_config, mon
         _make_dvrs(hd_status="OFFLINE - SEM PING"), _make_pdf(tmp_path), app_config
     )
 
+    assert "ATENÇÃO HD" not in fake_client.outlook.last_mail.Subject
+
+
+def test_enviar_email_assunto_alerta_hd_quando_online_com_erro(tmp_path, app_config, monkeypatch):
+    """ONLINE - ERRO (HD) é problema REAL de HD — vai 'ATENÇÃO HD' no assunto."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(hd_status="ONLINE - ERRO (HD)"), _make_pdf(tmp_path), app_config
+    )
+
     assert "ATENÇÃO HD" in fake_client.outlook.last_mail.Subject
+
+
+def test_email_lista_dvrs_offline_como_hd_nao_verificado(tmp_path, app_config, monkeypatch):
+    """OFFLINE deve aparecer em seção própria 'HD NÃO VERIFICADO' do corpo,
+    não no resumo de 'DVRs COM PROBLEMA DE HD'."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(hd_status="OFFLINE - SEM PING"), _make_pdf(tmp_path), app_config
+    )
+
+    corpo = fake_client.outlook.last_mail.Body.upper()
+    assert "HD NÃO VERIFICADO" in corpo or "HD NAO VERIFICADO" in corpo
+    # DVR_TESTE deve aparecer no corpo (na seção de não-verificado)
+    assert "DVR_TESTE" in corpo
+
+
+def test_email_offline_nao_aparece_em_dvrs_com_problema_de_hd(tmp_path, app_config, monkeypatch):
+    """Regressão: OFFLINE NÃO deve aparecer na seção
+    'DVRs COM PROBLEMA DE HD' (só problema real de HD vai lá)."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.enviar_email(
+        _make_dvrs(hd_status="OFFLINE - SEM PING"), _make_pdf(tmp_path), app_config
+    )
+
+    corpo = fake_client.outlook.last_mail.Body
+    if "DVRs COM PROBLEMA DE HD" in corpo:
+        # se a seção existe, OFFLINE não pode estar ali (mas pode em outra seção)
+        secao_hd = corpo.split("DVRs COM PROBLEMA DE HD")[1].split("\n\n")[0]
+        assert "OFFLINE" not in secao_hd, \
+            "OFFLINE caiu por engano na seção de problema de HD"
 
 
 def test_enviar_email_salva_backup_em_logs_dir(tmp_path, app_config, monkeypatch):

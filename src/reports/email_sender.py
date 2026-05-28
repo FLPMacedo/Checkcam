@@ -26,6 +26,7 @@ def _compor(dvrs: List[DVR], config: AppConfig) -> Tuple[str, str]:
     cameras_nao_instaladas = 0
 
     dvrs_hd_problema: List[str] = []
+    dvrs_hd_nao_verificado: List[str] = []   # DVRs offline → HD não pôde ser checado
     resumo_cameras: List[str] = []
 
     tem_falha_hd = False
@@ -33,15 +34,19 @@ def _compor(dvrs: List[DVR], config: AppConfig) -> Tuple[str, str]:
     tem_camera_nao_reconhecida = False
 
     for dvr in dvrs:
-        if dvr.hd.status != "ONLINE - NORMAL":
+        # ── Categorização do status do HD ──
+        # OFFLINE → não é problema de HD; é problema de conexão. Só registramos
+        #           que o HD não pôde ser verificado.
+        # ONLINE com status != NORMAL → problema REAL de HD (ATENÇÃO HD).
+        if dvr.hd.status.startswith("OFFLINE"):
+            tem_dvr_sem_conexao = True
+            dvrs_hd_nao_verificado.append(f"- {dvr.nome}: {dvr.hd.status}")
+        elif dvr.hd.status.startswith("ONLINE") and dvr.hd.status != "ONLINE - NORMAL":
             tem_falha_hd = True
             dvrs_hd_problema.append(
                 f"- {dvr.nome}: {dvr.hd.status} "
                 f"(Total: {dvr.hd.total} | Livre: {dvr.hd.livre})"
             )
-
-        if dvr.hd.status.startswith("OFFLINE"):
-            tem_dvr_sem_conexao = True
 
         cams_problema: List[str] = []
 
@@ -100,6 +105,14 @@ referente à data de hoje ({hoje}).
         corpo += "\n".join(dvrs_hd_problema)
     else:
         corpo += "\n✅ Nenhum DVR com problema de HD identificado.\n"
+
+    if dvrs_hd_nao_verificado:
+        corpo += "\n\nℹ HD NÃO VERIFICADO (DVR offline):\n"
+        corpo += "\n".join(dvrs_hd_nao_verificado)
+        corpo += (
+            "\n\n(O estado do HD desses DVRs não pôde ser verificado "
+            "porque o equipamento não respondeu ao acesso remoto.)\n"
+        )
 
     if resumo_cameras:
         corpo += "\n⚠ CÂMERAS COM ALERTA IDENTIFICADO:\n"

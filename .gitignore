@@ -62,6 +62,19 @@ data/
 # PDFs e XLSX gerados (saída do checklist)
 relatorios/
 
+# Frames de câmera capturados em qualquer lugar (proteção contra base_dir
+# mal configurado em alguma instalação — não queremos JPGs vazando no repo).
+# JPG só é permitido dentro de assets/ (onde fica o error.jpg).
+*.jpg
+*.jpeg
+!assets/**/*.jpg
+!assets/**/*.jpeg
+# Pastas de DVR criadas ao lado de main.py se base_dir ficar relativo
+DVR_*/
+PN_*/
+CD_*/
+CAMPO_*/
+
 # ─── Binários grandes ────────────────────────────────────────────────────────
 # Não versionar — documentar como obter no README:
 #   - ffmpeg: baixar de https://www.gyan.dev/ffmpeg/builds/ e extrair em assets/ffmpeg/
