@@ -1,5 +1,8 @@
 # Próximos passos
 
+> **📋 Plano de execução:** o dashboard tem seu próprio arquivo com fases
+> e tasks marcáveis: [PLANO_DASHBOARD.md](PLANO_DASHBOARD.md)
+
 ## 1. Dashboard web-in-window (prioridade)
 
 **Objetivo:** dashboard que mostra estado atual por instalação, no estilo
