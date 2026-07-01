@@ -40,6 +40,37 @@ CREATE TABLE IF NOT EXISTS emails (
     instalacao_id   INTEGER NOT NULL REFERENCES instalacoes(id) ON DELETE CASCADE,
     email           TEXT    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS snapshots (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    instalacao_id          INTEGER NOT NULL REFERENCES instalacoes(id) ON DELETE CASCADE,
+    executado_em           TEXT    NOT NULL,
+    total_dvrs             INTEGER NOT NULL DEFAULT 0,
+    total_cameras          INTEGER NOT NULL DEFAULT 0,
+    cameras_ok             INTEGER NOT NULL DEFAULT 0,
+    cameras_alerta         INTEGER NOT NULL DEFAULT 0,
+    cameras_sem_conexao    INTEGER NOT NULL DEFAULT 0,
+    cameras_nao_instaladas INTEGER NOT NULL DEFAULT 0,
+    dvrs_hd_erro           INTEGER NOT NULL DEFAULT 0,
+    dvrs_offline           INTEGER NOT NULL DEFAULT 0,
+    excel_path             TEXT    NOT NULL DEFAULT '',
+    pdf_path               TEXT    NOT NULL DEFAULT '',
+    book_path              TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS snapshot_dvrs (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_id            INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+    dvr_nome               TEXT    NOT NULL,
+    dvr_ip                 TEXT    NOT NULL,
+    hd_status              TEXT    NOT NULL,
+    hd_total               TEXT    NOT NULL DEFAULT '',
+    hd_livre               TEXT    NOT NULL DEFAULT '',
+    cameras_ok             INTEGER NOT NULL DEFAULT 0,
+    cameras_alerta         INTEGER NOT NULL DEFAULT 0,
+    cameras_offline        INTEGER NOT NULL DEFAULT 0,
+    cameras_nao_instaladas INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
