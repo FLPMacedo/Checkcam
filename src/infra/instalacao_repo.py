@@ -43,7 +43,9 @@ class InstalacaoRepository:
                 raise KeyError(f"Instalação id={id} não encontrada")
 
             dvr_rows = conn.execute(
-                "SELECT nome, ip, qtd_cameras FROM dvrs WHERE instalacao_id = ? ORDER BY id",
+                "SELECT nome, ip, qtd_cameras, marca, tipo, porta_http, "
+                "porta_rtsp, usuario, senha, chave_criptografia "
+                "FROM dvrs WHERE instalacao_id = ? ORDER BY id",
                 (id,),
             ).fetchall()
 
@@ -66,7 +68,18 @@ class InstalacaoRepository:
             logs_dir=row["logs_dir"],
             error_img=row["error_img"],
             dvrs=[
-                DVR(nome=r["nome"], ip=r["ip"], qtd_cameras=r["qtd_cameras"])
+                DVR(
+                    nome=r["nome"],
+                    ip=r["ip"],
+                    qtd_cameras=r["qtd_cameras"],
+                    marca=r["marca"],
+                    tipo=r["tipo"],
+                    porta_http=r["porta_http"],
+                    porta_rtsp=r["porta_rtsp"],
+                    usuario=r["usuario"],
+                    senha=r["senha"],
+                    chave_criptografia=r["chave_criptografia"],
+                )
                 for r in dvr_rows
             ],
             emails=[r["email"] for r in email_rows],
@@ -114,8 +127,17 @@ class InstalacaoRepository:
             conn.execute("DELETE FROM dvrs WHERE instalacao_id = ?", (inst.id,))
             for dvr in inst.dvrs:
                 conn.execute(
-                    "INSERT INTO dvrs (instalacao_id, nome, ip, qtd_cameras) VALUES (?, ?, ?, ?)",
-                    (inst.id, dvr.nome, dvr.ip, dvr.qtd_cameras),
+                    "INSERT INTO dvrs (instalacao_id, nome, ip, qtd_cameras, "
+                    "marca, tipo, porta_http, porta_rtsp, usuario, senha, "
+                    "chave_criptografia) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        inst.id, dvr.nome, dvr.ip, dvr.qtd_cameras,
+                        str(dvr.marca), str(dvr.tipo),
+                        dvr.porta_http, dvr.porta_rtsp,
+                        dvr.usuario, dvr.senha,
+                        dvr.chave_criptografia,
+                    ),
                 )
 
             # ── Emails: substitui completamente ──

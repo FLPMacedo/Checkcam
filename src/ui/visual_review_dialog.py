@@ -12,26 +12,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.domain.models import Camera
+from src.domain.models import Camera, cameras_para_revisar
+from src.domain.status import CameraStatus, LABEL_POR_DIGITO, STATUS_POR_DIGITO
 
-_STATUS_KEYS: dict[Qt.Key, str] = {
-    Qt.Key.Key_1: "OK",
-    Qt.Key.Key_2: "EMBAÇADA_SUJA",
-    Qt.Key.Key_3: "DISTORCIDA",
-    Qt.Key.Key_4: "TONALIDADE_CLARA_ESCURA",
-    Qt.Key.Key_5: "NAO_RECONHECIDA",
-    Qt.Key.Key_6: "NAO_INSTALADA",
+# Derivado da fonte única (domain.status): Qt.Key do dígito → status.
+_STATUS_KEYS: dict[Qt.Key, CameraStatus] = {
+    getattr(Qt.Key, f"Key_{digito}"): status
+    for digito, status in STATUS_POR_DIGITO.items()
 }
 
 # Texto curto que aparece no painel lateral direito, para cada tecla
-_HINT_LABELS = [
-    ("1", "OK"),
-    ("2", "EMBAÇADA / SUJA"),
-    ("3", "DISTORCIDA"),
-    ("4", "TONALIDADE"),
-    ("5", "NÃO RECONHECIDA"),
-    ("6", "NÃO INSTALADA"),
-]
+_HINT_LABELS = [(str(d), label) for d, label in LABEL_POR_DIGITO.items()]
 
 _PANEL_BG = "#1a1a1a"
 _PANEL_FG = "#e6e6e6"
@@ -73,7 +64,7 @@ class VisualReviewDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self._cameras = [c for c in cameras if c.imagem != error_img]
+        self._cameras = cameras_para_revisar(cameras, error_img)
         self._idx = 0
         self._setup_ui()
         # Defere _show_current() para depois do __init__ retornar.
@@ -238,7 +229,7 @@ class VisualReviewDialog(QDialog):
         pixmap = QPixmap(cam.imagem)
 
         if pixmap.isNull():
-            cam.status = "ERRO_IMAGEM"
+            cam.status = CameraStatus.ERRO_IMAGEM
             self.image_label.clear()
             self.image_label.setStyleSheet(
                 "color:#E74856; font-size:13pt; padding:24px; background:#1a1a1a;"

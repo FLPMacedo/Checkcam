@@ -196,6 +196,23 @@ class TestRoundtrip:
         restaurados = importar(exportar(originais))
         assert [i.nome for i in restaurados] == [i.nome for i in originais]
 
+    def test_roundtrip_preserva_chave_de_criptografia_do_dvr(self):
+        """Backup/restauração mantém a chave_criptografia de cada DVR."""
+        from src.infra.backup import exportar, importar
+
+        original = Instalacao(
+            nome="COM_CHAVE",
+            dvrs=[
+                DVR(nome="HIK1", ip="1.1.1.1", qtd_cameras=4,
+                    chave_criptografia="CHAVE_ABC_123"),
+                DVR(nome="HIK2", ip="2.2.2.2", qtd_cameras=8,
+                    chave_criptografia=""),  # sem chave também round-trips
+            ],
+        )
+        restaurado = importar(exportar([original]))[0]
+        assert restaurado.dvrs[0].chave_criptografia == "CHAVE_ABC_123"
+        assert restaurado.dvrs[1].chave_criptografia == ""
+
 
 # ─── restaurar_no_repo ────────────────────────────────────────────────────────
 

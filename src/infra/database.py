@@ -21,11 +21,18 @@ CREATE TABLE IF NOT EXISTS instalacoes (
 );
 
 CREATE TABLE IF NOT EXISTS dvrs (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    instalacao_id   INTEGER NOT NULL REFERENCES instalacoes(id) ON DELETE CASCADE,
-    nome            TEXT    NOT NULL,
-    ip              TEXT    NOT NULL,
-    qtd_cameras     INTEGER NOT NULL DEFAULT 1
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    instalacao_id      INTEGER NOT NULL REFERENCES instalacoes(id) ON DELETE CASCADE,
+    nome               TEXT    NOT NULL,
+    ip                 TEXT    NOT NULL,
+    qtd_cameras        INTEGER NOT NULL DEFAULT 1,
+    marca              TEXT    NOT NULL DEFAULT 'hikvision',
+    tipo               TEXT    NOT NULL DEFAULT 'dvr',
+    porta_http         TEXT    NOT NULL DEFAULT '',
+    porta_rtsp         TEXT    NOT NULL DEFAULT '',
+    usuario            TEXT    NOT NULL DEFAULT '',
+    senha              TEXT    NOT NULL DEFAULT '',
+    chave_criptografia TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS emails (
@@ -36,11 +43,38 @@ CREATE TABLE IF NOT EXISTS emails (
 """
 
 
+# Colunas adicionadas à tabela dvrs depois da v1 (marca/tipo + overrides).
+# Bancos antigos ganham essas colunas via ALTER TABLE, preservando os dados.
+_COLUNAS_DVR_NOVAS = {
+    "marca":              "TEXT NOT NULL DEFAULT 'hikvision'",
+    "tipo":               "TEXT NOT NULL DEFAULT 'dvr'",
+    "porta_http":         "TEXT NOT NULL DEFAULT ''",
+    "porta_rtsp":         "TEXT NOT NULL DEFAULT ''",
+    "usuario":            "TEXT NOT NULL DEFAULT ''",
+    "senha":              "TEXT NOT NULL DEFAULT ''",
+    "chave_criptografia": "TEXT NOT NULL DEFAULT ''",
+}
+
+
+def _migrar_dvrs(conn: sqlite3.Connection) -> None:
+    """Adiciona colunas novas à tabela dvrs em bancos pré-existentes.
+
+    ALTER TABLE ADD COLUMN com DEFAULT é não-destrutivo: linhas antigas
+    recebem o default (hikvision/dvr + overrides vazios), preservando o
+    comportamento atual.
+    """
+    existentes = {row[1] for row in conn.execute("PRAGMA table_info(dvrs)").fetchall()}
+    for coluna, ddl in _COLUNAS_DVR_NOVAS.items():
+        if coluna not in existentes:
+            conn.execute(f"ALTER TABLE dvrs ADD COLUMN {coluna} {ddl}")
+
+
 def criar_banco(db_path: str) -> None:
-    """Cria o banco e as três tabelas se ainda não existirem."""
+    """Cria o banco e as três tabelas se ainda não existirem; migra se preciso."""
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(_SCHEMA)
+        _migrar_dvrs(conn)
 
 
 @contextmanager

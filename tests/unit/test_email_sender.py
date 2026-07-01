@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from tests.fakes.fake_win32com import FakeWin32ComClient, FakeWin32ComModule
+from src.domain.events import EmailDraft
 from src.domain.models import Camera, DVR, HDStatus
 from src.reports import email_sender
 
@@ -202,3 +203,76 @@ def test_email_assunto_normal_se_so_tem_ok_e_nao_instaladas(
 
     assunto = fake_client.outlook.last_mail.Subject
     assert "ATENÇÃO HD" not in assunto
+
+
+# ─── compor_email / enviar_draft (preview de e-mail) ─────────────────────────
+
+def test_compor_email_retorna_draft_completo(tmp_path, app_config):
+    """compor_email monta o rascunho sem enviar nem tocar em disco."""
+    pdf = _make_pdf(tmp_path)
+    draft = email_sender.compor_email(_make_dvrs(), pdf, app_config)
+
+    assert isinstance(draft, EmailDraft)
+    assert draft.assunto  # assunto não-vazio
+    assert "RESUMO GERAL" in draft.corpo
+    assert "teste@exemplo.com" in draft.destinatarios
+    assert any("relatorio.pdf" in a for a in draft.anexos)
+
+
+def test_compor_email_inclui_book_quando_fornecido(tmp_path, app_config):
+    pdf = _make_pdf(tmp_path)
+    book = str(tmp_path / "book.pdf")
+    open(book, "wb").close()
+
+    draft = email_sender.compor_email(_make_dvrs(), pdf, app_config, book_path=book)
+
+    assert len(draft.anexos) == 2
+    assert any("book.pdf" in a for a in draft.anexos)
+
+
+def test_compor_email_nao_envia_nem_grava_backup(tmp_path, app_config, monkeypatch):
+    """compor_email é puro: sem Outlook, sem arquivo de backup."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    email_sender.compor_email(_make_dvrs(), _make_pdf(tmp_path), app_config)
+
+    assert fake_client.outlook.last_mail is None
+    # logs_dir não deve ter ganho nenhum arquivo de backup
+    logs = Path(app_config.logs_dir)
+    assert not logs.exists() or not list(logs.glob("email_*.txt"))
+
+
+def test_enviar_draft_envia_o_conteudo_editado(tmp_path, app_config, monkeypatch):
+    """enviar_draft usa exatamente o que está no rascunho (assunto/corpo/destinatários)."""
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    draft = EmailDraft(
+        assunto="ASSUNTO EDITADO",
+        corpo="corpo totalmente reescrito pelo operador",
+        destinatarios=["novo@dest.com"],
+        anexos=[],
+    )
+    email_sender.enviar_draft(draft, app_config)
+
+    mail = fake_client.outlook.last_mail
+    assert mail.Subject == "ASSUNTO EDITADO"
+    assert mail.Body == "corpo totalmente reescrito pelo operador"
+    assert mail.To == "novo@dest.com"
+
+
+def test_enviar_draft_backup_reflete_edicao(tmp_path, app_config, monkeypatch):
+    fake_client = FakeWin32ComClient()
+    _patch_com(monkeypatch, fake_client)
+
+    draft = EmailDraft(
+        assunto="X",
+        corpo="texto editado para o backup",
+        destinatarios=["a@b.com"],
+        anexos=[],
+    )
+    backup_path = email_sender.enviar_draft(draft, app_config)
+
+    conteudo = Path(backup_path).read_text(encoding="utf-8")
+    assert "texto editado para o backup" in conteudo

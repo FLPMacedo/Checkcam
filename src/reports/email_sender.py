@@ -6,7 +6,9 @@ from typing import List, Tuple
 
 import win32com.client
 
+from src.domain.events import EmailDraft
 from src.domain.models import DVR
+from src.domain.status import CameraStatus
 from src.infra.app_config import AppConfig
 
 
@@ -53,19 +55,19 @@ def _compor(dvrs: List[DVR], config: AppConfig) -> Tuple[str, str]:
         for cam in dvr.cameras:
             total_cameras += 1
 
-            if cam.status == "OK":
+            if cam.status == CameraStatus.OK:
                 cameras_ok += 1
-            elif cam.status == "NAO_INSTALADA":
+            elif cam.status == CameraStatus.NAO_INSTALADA:
                 # Câmera marcada manualmente como inexistente fisicamente.
                 # NÃO conta como alerta nem entra no resumo de problemas —
                 # é só uma contagem informativa.
                 cameras_nao_instaladas += 1
-            elif cam.status == "SEM_CONEXAO":
+            elif cam.status == CameraStatus.SEM_CONEXAO:
                 cameras_sem_conexao += 1
                 tem_dvr_sem_conexao = True
                 cameras_alerta += 1
                 cams_problema.append(f"{cam.nome} (SEM CONEXÃO)")
-            elif cam.status == "NAO_RECONHECIDA":
+            elif cam.status == CameraStatus.NAO_RECONHECIDA:
                 cameras_alerta += 1
                 tem_camera_nao_reconhecida = True
                 cams_problema.append(f"{cam.nome} (NÃO RECONHECIDA)")
@@ -176,25 +178,18 @@ TI
     return assunto, corpo
 
 
-# ─── Envio ─────────────────────────────────────────────────────────────────────
+# ─── Rascunho ────────────────────────────────────────────────────────────────
 
-def enviar_email(
+def compor_email(
     dvrs: List[DVR],
     pdf_path: str,
     config: AppConfig,
     book_path: str = "",
-) -> str:
-    """
-    Compõe o e-mail de checklist, grava backup em config.logs_dir e envia
-    via Outlook.
+) -> EmailDraft:
+    """Monta o rascunho do e-mail (assunto, corpo, destinatários, anexos).
 
-    Args:
-        dvrs:      DVRs do checklist (gera o corpo do e-mail)
-        pdf_path:  PDF do Checklist principal (sempre anexado)
-        config:    config da instalação (emails, paths)
-        book_path: PDF do Book (opcional — quando passado, vai como 2º anexo)
-
-    Retorna o caminho do arquivo de backup gravado em config.logs_dir.
+    Não envia nada nem toca em disco — só monta o EmailDraft, que pode ser
+    exibido/editado num preview antes de ``enviar_draft``.
     """
     assunto, corpo = _compor(dvrs, config)
 
@@ -202,6 +197,24 @@ def enviar_email(
     if book_path:
         anexos.append(os.path.abspath(book_path))
 
+    return EmailDraft(
+        assunto=assunto,
+        corpo=corpo,
+        destinatarios=list(config.emails),
+        anexos=anexos,
+    )
+
+
+# ─── Envio ─────────────────────────────────────────────────────────────────────
+
+def enviar_draft(draft: EmailDraft, config: AppConfig) -> str:
+    """Grava o backup do rascunho em config.logs_dir e envia via Outlook.
+
+    Recebe um EmailDraft (possivelmente já editado no preview) — o backup e o
+    e-mail refletem exatamente o conteúdo do rascunho.
+
+    Retorna o caminho do arquivo de backup gravado em config.logs_dir.
+    """
     # ── Backup em disco ──
     if not config.logs_dir:
         raise ValueError(
@@ -217,24 +230,39 @@ def enviar_email(
         f.write("DATA/HORA:\n")
         f.write(agora + "\n\n")
         f.write("ASSUNTO:\n")
-        f.write(assunto + "\n\n")
+        f.write(draft.assunto + "\n\n")
         f.write("DESTINATÁRIOS:\n")
-        f.write(";".join(config.emails) + "\n\n")
+        f.write(";".join(draft.destinatarios) + "\n\n")
         f.write("ANEXOS:\n")
-        for a in anexos:
+        for a in draft.anexos:
             f.write(a + "\n")
         f.write("\n")
         f.write("CORPO DO EMAIL:\n")
-        f.write(corpo + "\n")
+        f.write(draft.corpo + "\n")
 
     # ── Envio via Outlook ──
     outlook = win32com.client.Dispatch("Outlook.Application")
     mail = outlook.CreateItem(0)
-    mail.To = ";".join(config.emails)
-    mail.Subject = assunto
-    mail.Body = corpo
-    for caminho in anexos:
+    mail.To = ";".join(draft.destinatarios)
+    mail.Subject = draft.assunto
+    mail.Body = draft.corpo
+    for caminho in draft.anexos:
         mail.Attachments.Add(caminho)
     mail.Send()
 
     return arquivo_backup
+
+
+def enviar_email(
+    dvrs: List[DVR],
+    pdf_path: str,
+    config: AppConfig,
+    book_path: str = "",
+) -> str:
+    """Compõe e envia o e-mail de checklist em um passo (sem preview).
+
+    Mantido como atalho/compatibilidade: equivale a
+    ``enviar_draft(compor_email(...), config)``.
+    """
+    draft = compor_email(dvrs, pdf_path, config, book_path=book_path)
+    return enviar_draft(draft, config)

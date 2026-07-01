@@ -24,6 +24,7 @@ class _FakeWorker(QThread):
 
     progress_signal = Signal(object)
     capture_done_signal = Signal(object)
+    email_review_signal = Signal(object)
     finished_signal = Signal(object)
     error_signal = Signal(str)
     log_signal = Signal(str)
@@ -228,3 +229,103 @@ def test_on_finished_loga_caminho_do_book(qtbot, app_config, monkeypatch):
 
     log_text = w.log_area.toPlainText()
     assert "book_xyz.pdf" in log_text
+
+
+# ─── Preview de e-mail ───────────────────────────────────────────────────────
+
+def test_on_email_review_abre_dialog_com_o_draft(qtbot, app_config, monkeypatch):
+    """_on_email_review instancia o EmailPreviewDialog com o draft recebido."""
+    from PySide6.QtWidgets import QDialog
+    from src.domain.events import EmailDraft
+
+    recebidos = []
+
+    class FakeDialog(QDialog):
+        def __init__(self, draft, parent=None):
+            super().__init__(parent)
+            recebidos.append(draft)
+
+        def show(self):
+            pass
+
+    monkeypatch.setattr(main_window, "EmailPreviewDialog", FakeDialog)
+
+    w = _window(qtbot, app_config)
+    draft = EmailDraft(assunto="Assunto X")
+    w._on_email_review(draft)
+
+    assert len(recebidos) == 1
+    assert recebidos[0].assunto == "Assunto X"
+
+
+def test_on_email_review_done_aceito_retoma_com_draft_editado(qtbot, app_config):
+    from PySide6.QtWidgets import QDialog
+    from src.domain.events import EmailDraft
+
+    retomados = []
+
+    class FakeWorker:
+        def resume_after_email(self, draft):
+            retomados.append(draft)
+
+    class FakeDialog:
+        def get_draft(self):
+            return EmailDraft(assunto="EDITADO")
+
+    w = _window(qtbot, app_config)
+    w._worker = FakeWorker()
+    w._email_dialog = FakeDialog()
+
+    w._on_email_review_done(QDialog.DialogCode.Accepted)
+
+    assert len(retomados) == 1
+    assert retomados[0].assunto == "EDITADO"
+
+
+def test_on_email_review_done_rejeitado_retoma_com_none(qtbot, app_config):
+    from PySide6.QtWidgets import QDialog
+    from src.domain.events import EmailDraft
+
+    retomados = []
+
+    class FakeWorker:
+        def resume_after_email(self, draft):
+            retomados.append(draft)
+
+    class FakeDialog:
+        def get_draft(self):
+            return EmailDraft(assunto="NAO_DEVE_USAR")
+
+    w = _window(qtbot, app_config)
+    w._worker = FakeWorker()
+    w._email_dialog = FakeDialog()
+
+    w._on_email_review_done(QDialog.DialogCode.Rejected)
+
+    assert retomados == [None]
+
+
+def test_on_finished_email_cancelado_mostra_aviso(qtbot, app_config, monkeypatch):
+    """Quando email_enviado=False, o popup informa que o e-mail NÃO foi enviado."""
+    from PySide6.QtWidgets import QMessageBox
+    from src.domain.events import ChecklistResult
+
+    popups = []
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        lambda *a, **kw: popups.append(a) or QMessageBox.StandardButton.Ok,
+    )
+    monkeypatch.setattr(main_window.MainWindow, "close", lambda self: None)
+
+    w = _window(qtbot, app_config)
+    result = ChecklistResult(
+        dvrs=_dvr(),
+        excel_path="C:/fake/x.xlsx",
+        pdf_path="C:/fake/x.pdf",
+        email_enviado=False,
+    )
+    w._on_finished(result)
+
+    # O texto do popup (4º arg posicional de information) deve mencionar o cancelamento
+    texto = " ".join(str(a) for a in popups[0])
+    assert "NÃO enviado" in texto or "cancelado" in texto.lower()

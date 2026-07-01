@@ -45,7 +45,18 @@ def _inst_para_dict(inst: Instalacao) -> dict:
         "logs_dir":        inst.logs_dir,
         "error_img":       inst.error_img,
         "dvrs": [
-            {"nome": d.nome, "ip": d.ip, "qtd_cameras": d.qtd_cameras}
+            {
+                "nome": d.nome,
+                "ip": d.ip,
+                "qtd_cameras": d.qtd_cameras,
+                "marca": str(d.marca),
+                "tipo": str(d.tipo),
+                "porta_http": d.porta_http,
+                "porta_rtsp": d.porta_rtsp,
+                "usuario": d.usuario,
+                "senha": d.senha,
+                "chave_criptografia": d.chave_criptografia,
+            }
             for d in inst.dvrs
         ],
         "emails": list(inst.emails),
@@ -94,9 +105,16 @@ def _dict_para_inst(d: dict) -> Instalacao:
         error_img=       d.get("error_img", ""),
         dvrs=[
             DVR(
-                nome=        dv.get("nome", ""),
-                ip=          dv.get("ip", ""),
-                qtd_cameras= int(dv.get("qtd_cameras", 0)),
+                nome=               dv.get("nome", ""),
+                ip=                 dv.get("ip", ""),
+                qtd_cameras=        int(dv.get("qtd_cameras", 0)),
+                marca=              dv.get("marca", "hikvision"),
+                tipo=               dv.get("tipo", "dvr"),
+                porta_http=         dv.get("porta_http", ""),
+                porta_rtsp=         dv.get("porta_rtsp", ""),
+                usuario=            dv.get("usuario", ""),
+                senha=              dv.get("senha", ""),
+                chave_criptografia= dv.get("chave_criptografia", ""),
             )
             for dv in d.get("dvrs", [])
         ],

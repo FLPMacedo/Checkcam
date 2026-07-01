@@ -4,14 +4,12 @@ from typing import List
 
 import cv2
 
-from src.domain.models import DVR
+from src.domain.models import DVR, cameras_para_revisar, todas_as_cameras
+from src.domain.status import CameraStatus, LABEL_POR_DIGITO, STATUS_POR_DIGITO
 
+# Derivado da fonte única (domain.status): tecla ASCII do dígito → status.
 _STATUS_KEYS = {
-    ord("1"): "OK",
-    ord("2"): "EMBAÇADA_SUJA",
-    ord("3"): "DISTORCIDA",
-    ord("4"): "TONALIDADE_CLARA_ESCURA",
-    ord("5"): "NAO_RECONHECIDA",
+    ord(str(digito)): status for digito, status in STATUS_POR_DIGITO.items()
 }
 
 
@@ -19,22 +17,18 @@ def analisar_visual(dvrs: List[DVR], error_img: str) -> List[DVR]:
     """
     Exibe cada câmera em tela cheia para classificação manual pelo operador.
 
-    Teclas:
+    Teclas (mapeadas a partir de domain.status.STATUS_POR_DIGITO):
         1 → OK
         2 → EMBAÇADA_SUJA
         3 → DISTORCIDA
         4 → TONALIDADE_CLARA_ESCURA
         5 → NAO_RECONHECIDA
+        6 → NAO_INSTALADA
         Q → interrompe e mantém status atual das câmeras restantes
 
     Câmeras cujo imagem é error_img são ignoradas.
     """
-    pendentes = [
-        cam
-        for dvr in dvrs
-        for cam in dvr.cameras
-        if cam.imagem != error_img
-    ]
+    pendentes = cameras_para_revisar(todas_as_cameras(dvrs), error_img)
 
     print(f"\n👁 INICIANDO ANÁLISE VISUAL ({len(pendentes)} câmeras)")
 
@@ -44,21 +38,16 @@ def analisar_visual(dvrs: List[DVR], error_img: str) -> List[DVR]:
     for idx, cam in enumerate(pendentes, 1):
         img = cv2.imread(cam.imagem)
         if img is None:
-            cam.status = "ERRO_IMAGEM"
+            cam.status = CameraStatus.ERRO_IMAGEM
             continue
 
         overlay = img.copy()
         cv2.rectangle(overlay, (0, 0), (img.shape[1], 150), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.6, img, 0.4, 0, img)
 
-        textos = [
-            f"Câmera {idx}/{len(pendentes)}",
-            "1 OK | 2 EMBAÇADA / SUJA",
-            "3 DISTORCIDA",
-            "4 TONALIDADE (MUITO CLARA ou ESCURA)",
-            "5 NÃO RECONHECIDA",
-            "Q sair",
-        ]
+        textos = [f"Câmera {idx}/{len(pendentes)}"]
+        textos += [f"{d} {label}" for d, label in LABEL_POR_DIGITO.items()]
+        textos.append("Q sair")
         y = 30
         for t in textos:
             cv2.putText(img, t, (30, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)

@@ -3,8 +3,11 @@ from __future__ import annotations
 import threading
 from typing import List
 
+from typing import Optional
+
 from PySide6.QtCore import QThread, Signal
 
+from src.domain.events import EmailDraft
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
 from src.services.checklist_service import ChecklistService
@@ -31,6 +34,7 @@ class ChecklistWorker(QThread):
 
     progress_signal: Signal = Signal(object)
     capture_done_signal: Signal = Signal(object)
+    email_review_signal: Signal = Signal(object)   # EmailDraft p/ preview
     finished_signal: Signal = Signal(object)
     error_signal: Signal = Signal(str)
     log_signal: Signal = Signal(str)   # linha de detalhe por DVR/câmera
@@ -41,6 +45,8 @@ class ChecklistWorker(QThread):
         self._config = config
         self._visual_done = threading.Event()
         self._dvrs_reviewed: List[DVR] = []
+        self._email_done = threading.Event()
+        self._email_draft_reviewed: Optional[EmailDraft] = None
 
     # ── Chamado pela main thread quando o diálogo de revisão fecha ────────────
 
@@ -52,7 +58,17 @@ class ChecklistWorker(QThread):
         self._dvrs_reviewed = dvrs
         self._visual_done.set()
 
-    # ── Bridge injetada no ChecklistService ───────────────────────────────────
+    def resume_after_email(self, draft: Optional[EmailDraft]) -> None:
+        """
+        Deve ser chamado pela MainWindow após o EmailPreviewDialog fechar.
+
+        ``draft`` é o rascunho (possivelmente editado) a enviar, ou None se o
+        usuário cancelou o envio. Desbloqueia o worker para concluir.
+        """
+        self._email_draft_reviewed = draft
+        self._email_done.set()
+
+    # ── Bridges injetadas no ChecklistService ─────────────────────────────────
 
     def _visual_review_bridge(self, dvrs: List[DVR], error_img: str) -> List[DVR]:
         """
@@ -66,6 +82,19 @@ class ChecklistWorker(QThread):
         self._visual_done.wait()
         return self._dvrs_reviewed
 
+    def _email_review_bridge(self, draft: EmailDraft) -> Optional[EmailDraft]:
+        """
+        Função injetada como email_review_fn no ChecklistService.
+
+        Pausa a thread do worker, sinaliza a main thread via
+        email_review_signal (para abrir o preview) e aguarda
+        resume_after_email(). Retorna o rascunho editado ou None (cancelar).
+        """
+        self._email_done.clear()
+        self.email_review_signal.emit(draft)
+        self._email_done.wait()
+        return self._email_draft_reviewed
+
     # ── QThread.run ───────────────────────────────────────────────────────────
 
     def run(self) -> None:
@@ -75,6 +104,7 @@ class ChecklistWorker(QThread):
                 on_progress=self.progress_signal.emit,
                 visual_review_fn=self._visual_review_bridge,
                 on_log=self.log_signal.emit,
+                email_review_fn=self._email_review_bridge,
             )
             result = service.executar(self._dvrs)
             self.finished_signal.emit(result)

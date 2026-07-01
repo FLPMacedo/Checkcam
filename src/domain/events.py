@@ -17,6 +17,21 @@ class ProgressEvent:
 
 
 @dataclass
+class EmailDraft:
+    """Rascunho do e-mail de checklist, editável antes do envio.
+
+    Produzido por ``reports.email_sender.compor_email`` e consumido por
+    ``enviar_draft``. Entre os dois, a UI pode exibir um diálogo de preview
+    e devolver uma versão alterada (ou None para cancelar o envio).
+    """
+
+    assunto: str = ""
+    corpo: str = ""
+    destinatarios: List[str] = field(default_factory=list)
+    anexos: List[str] = field(default_factory=list)
+
+
+@dataclass
 class ChecklistResult:
     """Resultado completo ao fim do pipeline."""
 
@@ -27,3 +42,4 @@ class ChecklistResult:
     book_path: str = ""         # PDF do book
     sucesso: bool = True
     erro: str = ""
+    email_enviado: bool = True  # False se o usuário cancelou no preview

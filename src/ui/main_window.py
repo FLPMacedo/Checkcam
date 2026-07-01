@@ -6,6 +6,7 @@ from typing import List
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -17,9 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.domain.events import ChecklistResult, ProgressEvent
-from src.domain.models import DVR
+from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
+from src.domain.models import DVR, cameras_para_revisar, todas_as_cameras
 from src.infra.app_config import AppConfig
+from src.ui.email_preview_dialog import EmailPreviewDialog
 from src.ui.visual_review_dialog import VisualReviewDialog
 from src.ui.worker import ChecklistWorker
 
@@ -73,6 +75,7 @@ class MainWindow(QMainWindow):
         self._worker: ChecklistWorker | None = None
         self._pending_dvrs: List[DVR] = []
         self._review_dialog: VisualReviewDialog | None = None
+        self._email_dialog: EmailPreviewDialog | None = None
         self._setup_ui()
 
     # ── Layout ────────────────────────────────────────────────────────────────
@@ -138,6 +141,7 @@ class MainWindow(QMainWindow):
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.log_signal.connect(self._on_log_detalhe)
         self._worker.capture_done_signal.connect(self._on_capture_done)
+        self._worker.email_review_signal.connect(self._on_email_review)
         self._worker.finished_signal.connect(self._on_finished)
         self._worker.error_signal.connect(self._on_error)
         self._worker.start()
@@ -166,10 +170,10 @@ class MainWindow(QMainWindow):
         self._pending_dvrs = dvrs
 
         # Extrai cameras de todos os DVRs (referências compartilhadas — mutável)
-        cameras = [cam for dvr in dvrs for cam in dvr.cameras]
+        cameras = todas_as_cameras(dvrs)
 
         # Conta apenas as câmeras com imagem válida (não error_img)
-        pendentes = [c for c in cameras if c.imagem != self._config.error_img]
+        pendentes = cameras_para_revisar(cameras, self._config.error_img)
 
         if not pendentes:
             self._log("[VISUAL] Nenhuma câmera capturada — pulando revisão visual.")
@@ -187,6 +191,28 @@ class MainWindow(QMainWindow):
         if self._worker is not None:
             self._worker.resume_after_visual(self._pending_dvrs)
 
+    def _on_email_review(self, draft: EmailDraft) -> None:
+        """Recebido do worker: abre o preview do e-mail na main thread.
+
+        O worker está pausado aguardando ``resume_after_email``. Ao fechar o
+        diálogo, retomamos com o rascunho editado (Enviar) ou com None
+        (Cancelar) — neste caso o pipeline conclui sem enviar.
+        """
+        self._log("[EMAIL] Abrindo preview do e-mail para revisão…")
+        self._email_dialog = EmailPreviewDialog(draft, self)
+        self._email_dialog.finished.connect(self._on_email_review_done)
+        self._email_dialog.show()
+
+    def _on_email_review_done(self, result_code: int) -> None:
+        """Chamado quando o preview do e-mail fecha — retoma o worker."""
+        if self._worker is None or self._email_dialog is None:
+            return
+        if result_code == QDialog.DialogCode.Accepted:
+            self._worker.resume_after_email(self._email_dialog.get_draft())
+        else:
+            self._log("[EMAIL] Envio cancelado pelo usuário.")
+            self._worker.resume_after_email(None)
+
     def _on_finished(self, result: ChecklistResult) -> None:
         self._log("")
         self._log("─" * 60)
@@ -202,9 +228,15 @@ class MainWindow(QMainWindow):
         anexos = [result.pdf_path]
         if result.book_path:
             anexos.append(result.book_path)
+        if result.email_enviado:
+            linha_email = (
+                f"E-mail enviado para {len(self._config.emails)} destinatário(s)."
+            )
+        else:
+            linha_email = "E-mail NÃO enviado (cancelado no preview)."
         resumo = (
             f"Checklist de {self._config.nome_instalacao} concluído!\n\n"
-            f"E-mail enviado para {len(self._config.emails)} destinatário(s)."
+            f"{linha_email}"
             f"\n\nArquivos gerados:\n  " + "\n  ".join(anexos)
         )
         QMessageBox.information(self, "Checklist concluído", resumo)

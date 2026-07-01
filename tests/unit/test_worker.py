@@ -1,5 +1,5 @@
 """Unit tests for src/ui/worker.py"""
-from src.domain.events import ChecklistResult, ProgressEvent
+from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
 from src.domain.models import DVR
 from src.ui import worker
 
@@ -8,7 +8,8 @@ def _dvr():
     return [DVR(nome="DVR_TESTE", ip="1.2.3.4", qtd_cameras=1)]
 
 
-def _make_mock_service(progress_etapas=None, raise_msg=None, call_visual=False):
+def _make_mock_service(progress_etapas=None, raise_msg=None, call_visual=False,
+                       call_email=False):
     """Retorna uma classe MockService configurável.
 
     call_visual=True faz o mock chamar visual_review_fn, simulando o ponto
@@ -18,10 +19,15 @@ def _make_mock_service(progress_etapas=None, raise_msg=None, call_visual=False):
     msg = raise_msg
     do_visual = call_visual
 
+    do_email = call_email
+
     class MockService:
-        def __init__(self, config, on_progress=None, visual_review_fn=None, on_log=None):
+        def __init__(self, config, on_progress=None, visual_review_fn=None,
+                     on_log=None, email_review_fn=None):
             self._on_progress = on_progress or (lambda e: None)
             self._visual_fn = visual_review_fn or (lambda dvrs, e: dvrs)
+            self._email_fn = email_review_fn or (lambda draft: draft)
+            self.draft_revisado = None
 
         def executar(self, dvrs):
             if msg:
@@ -30,6 +36,8 @@ def _make_mock_service(progress_etapas=None, raise_msg=None, call_visual=False):
                 self._on_progress(ProgressEvent(etapa=etapa, mensagem="teste"))
             if do_visual:
                 dvrs = self._visual_fn(dvrs, "error.jpg")
+            if do_email:
+                self.draft_revisado = self._email_fn(EmailDraft(assunto="orig"))
             return ChecklistResult(dvrs=dvrs, excel_path="/x.xlsx", pdf_path="/x.pdf")
 
     return MockService
@@ -127,3 +135,55 @@ def test_worker_retoma_pipeline_apos_resume_after_visual(qtbot, app_config, monk
 
     assert len(resultados) == 1
     assert isinstance(resultados[0], ChecklistResult)
+
+
+# ─── Ponte de preview de e-mail ──────────────────────────────────────────────
+
+def test_worker_emite_email_review_signal(qtbot, app_config, monkeypatch):
+    """email_review_signal é emitido quando o serviço chama email_review_fn."""
+    monkeypatch.setattr(worker, "ChecklistService",
+                        _make_mock_service(call_email=True))
+
+    w = worker.ChecklistWorker(_dvr(), app_config)
+    drafts_recebidos = []
+    w.email_review_signal.connect(drafts_recebidos.append)
+
+    # Auto-resume com o mesmo draft para não travar
+    w.email_review_signal.connect(lambda draft: w.resume_after_email(draft))
+
+    with qtbot.waitSignal(w.finished_signal, timeout=5000):
+        w.start()
+
+    assert len(drafts_recebidos) == 1
+    assert drafts_recebidos[0].assunto == "orig"
+
+
+def test_worker_resume_after_email_passa_draft_editado(qtbot, app_config, monkeypatch):
+    """O draft passado em resume_after_email é o que o bridge devolve ao serviço."""
+    mock_cls = _make_mock_service(call_email=True)
+    monkeypatch.setattr(worker, "ChecklistService", mock_cls)
+
+    w = worker.ChecklistWorker(_dvr(), app_config)
+
+    editado = EmailDraft(assunto="EDITADO NO PREVIEW")
+    w.email_review_signal.connect(lambda draft: w.resume_after_email(editado))
+
+    with qtbot.waitSignal(w.finished_signal, timeout=5000):
+        w.start()
+
+    # O bridge deve ter retornado o draft editado para o serviço
+    assert w._email_draft_reviewed.assunto == "EDITADO NO PREVIEW"
+
+
+def test_worker_resume_after_email_none_cancela(qtbot, app_config, monkeypatch):
+    """resume_after_email(None) → bridge devolve None (envio cancelado)."""
+    monkeypatch.setattr(worker, "ChecklistService",
+                        _make_mock_service(call_email=True))
+
+    w = worker.ChecklistWorker(_dvr(), app_config)
+    w.email_review_signal.connect(lambda draft: w.resume_after_email(None))
+
+    with qtbot.waitSignal(w.finished_signal, timeout=5000):
+        w.start()
+
+    assert w._email_draft_reviewed is None

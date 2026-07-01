@@ -5,16 +5,20 @@ from typing import Callable, List, Optional
 from src.core.camera_capture import capturar_cameras
 from src.core.hd_analyzer import analisar_hd
 from src.core.visual_review import analisar_visual
-from src.domain.events import ChecklistResult, ProgressEvent
+from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
 from src.reports.book_builder import gerar_book_excel
-from src.reports.email_sender import enviar_email
+from src.reports.email_sender import compor_email, enviar_draft
 from src.reports.excel_builder import gerar_excel
 from src.reports.pdf_exporter import exportar_pdf
 
 # Tipo da função de revisão visual: recebe (dvrs, error_img) → dvrs
 _VisualFn = Callable[[List[DVR], str], List[DVR]]
+
+# Tipo do hook de preview de e-mail: recebe o rascunho e devolve uma versão
+# (possivelmente editada) ou None para cancelar o envio.
+_EmailReviewFn = Callable[[EmailDraft], Optional[EmailDraft]]
 
 
 class ChecklistService:
@@ -41,11 +45,14 @@ class ChecklistService:
         on_progress: Optional[Callable[[ProgressEvent], None]] = None,
         visual_review_fn: Optional[_VisualFn] = None,
         on_log: Optional[Callable[[str], None]] = None,
+        email_review_fn: Optional[_EmailReviewFn] = None,
     ) -> None:
         self._config = config
         self._on_progress = on_progress or (lambda e: None)
         self._visual_review_fn: _VisualFn = visual_review_fn or analisar_visual
         self._on_log = on_log  # None → core usa print()
+        # Default: identidade → envia o rascunho como está (comportamento legado).
+        self._email_review_fn: _EmailReviewFn = email_review_fn or (lambda d: d)
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -77,7 +84,12 @@ class ChecklistService:
         book_path = exportar_pdf(book_excel_path)
 
         self._emit("EMAIL", "Enviando e-mail...")
-        enviar_email(dvrs, pdf_path, self._config, book_path=book_path)
+        draft = compor_email(dvrs, pdf_path, self._config, book_path=book_path)
+        draft = self._email_review_fn(draft)
+
+        email_enviado = draft is not None
+        if email_enviado:
+            enviar_draft(draft, self._config)
 
         return ChecklistResult(
             dvrs=dvrs,
@@ -85,4 +97,5 @@ class ChecklistService:
             pdf_path=pdf_path,
             book_excel_path=book_excel_path,
             book_path=book_path,
+            email_enviado=email_enviado,
         )
