@@ -23,11 +23,14 @@ def _make_mock_service(progress_etapas=None, raise_msg=None, call_visual=False,
 
     class MockService:
         def __init__(self, config, on_progress=None, visual_review_fn=None,
-                     on_log=None, email_review_fn=None):
+                     on_log=None, email_review_fn=None, snapshot_repo=None,
+                     instalacao_id=0):
             self._on_progress = on_progress or (lambda e: None)
             self._visual_fn = visual_review_fn or (lambda dvrs, e: dvrs)
             self._email_fn = email_review_fn or (lambda draft: draft)
             self.draft_revisado = None
+            MockService.snapshot_repo = snapshot_repo
+            MockService.instalacao_id = instalacao_id
 
         def executar(self, dvrs):
             if msg:
@@ -187,3 +190,22 @@ def test_worker_resume_after_email_none_cancela(qtbot, app_config, monkeypatch):
         w.start()
 
     assert w._email_draft_reviewed is None
+
+
+# ─── Repasse do snapshot_repo / instalacao_id ────────────────────────────────
+
+def test_worker_repassa_snapshot_repo_e_instalacao_id(qtbot, app_config, monkeypatch):
+    """snapshot_repo e instalacao_id chegam ao ChecklistService."""
+    mock_cls = _make_mock_service()
+    monkeypatch.setattr(worker, "ChecklistService", mock_cls)
+
+    sentinela = object()
+    w = worker.ChecklistWorker(
+        _dvr(), app_config, snapshot_repo=sentinela, instalacao_id=9
+    )
+
+    with qtbot.waitSignal(w.finished_signal, timeout=5000):
+        w.start()
+
+    assert mock_cls.snapshot_repo is sentinela
+    assert mock_cls.instalacao_id == 9

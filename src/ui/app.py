@@ -5,6 +5,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from src.infra.instalacao_repo import InstalacaoRepository
+from src.infra.snapshot_repo import SnapshotRepository
 from src.ui.home_window import HomeWindow
 
 
@@ -18,6 +19,7 @@ def run(db_path: str = "checkcam.db") -> int:
     """
     app = QApplication.instance() or QApplication(sys.argv)
     repo = InstalacaoRepository(db_path)
-    window = HomeWindow(repo)
+    snapshot_repo = SnapshotRepository(db_path)
+    window = HomeWindow(repo, snapshot_repo=snapshot_repo)
     window.show()
     return app.exec()

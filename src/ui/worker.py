@@ -10,6 +10,7 @@ from PySide6.QtCore import QThread, Signal
 from src.domain.events import EmailDraft
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
+from src.infra.snapshot_repo import SnapshotRepository
 from src.services.checklist_service import ChecklistService
 
 
@@ -39,10 +40,19 @@ class ChecklistWorker(QThread):
     error_signal: Signal = Signal(str)
     log_signal: Signal = Signal(str)   # linha de detalhe por DVR/câmera
 
-    def __init__(self, dvrs: List[DVR], config: AppConfig, parent=None) -> None:
+    def __init__(
+        self,
+        dvrs: List[DVR],
+        config: AppConfig,
+        parent=None,
+        snapshot_repo: Optional[SnapshotRepository] = None,
+        instalacao_id: int = 0,
+    ) -> None:
         super().__init__(parent)
         self._dvrs = dvrs
         self._config = config
+        self._snapshot_repo = snapshot_repo
+        self._instalacao_id = instalacao_id
         self._visual_done = threading.Event()
         self._dvrs_reviewed: List[DVR] = []
         self._email_done = threading.Event()
@@ -105,6 +115,8 @@ class ChecklistWorker(QThread):
                 visual_review_fn=self._visual_review_bridge,
                 on_log=self.log_signal.emit,
                 email_review_fn=self._email_review_bridge,
+                snapshot_repo=self._snapshot_repo,
+                instalacao_id=self._instalacao_id,
             )
             result = service.executar(self._dvrs)
             self.finished_signal.emit(result)

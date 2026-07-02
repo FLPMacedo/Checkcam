@@ -31,7 +31,8 @@ class _FakeWorker(QThread):
 
     started_count = 0
 
-    def __init__(self, dvrs, config, parent=None):
+    def __init__(self, dvrs, config, parent=None, snapshot_repo=None,
+                 instalacao_id=0):
         super().__init__(parent)
         _FakeWorker.started_count = 0
 
@@ -67,6 +68,30 @@ def test_clicar_iniciar_inicia_worker(qtbot, app_config, monkeypatch):
     qtbot.mouseClick(w.btn_iniciar, Qt.MouseButton.LeftButton)
 
     assert _FakeWorker.started_count == 1
+
+
+def test_main_window_repassa_snapshot_repo_e_instalacao_id_ao_worker(
+    qtbot, app_config, monkeypatch
+):
+    """MainWindow constrói o ChecklistWorker com snapshot_repo e instalacao_id."""
+    capturado = {}
+
+    class _SpyWorker(_FakeWorker):
+        def __init__(self, dvrs, config, parent=None, snapshot_repo=None,
+                     instalacao_id=0):
+            super().__init__(dvrs, config, parent)
+            capturado["snapshot_repo"] = snapshot_repo
+            capturado["instalacao_id"] = instalacao_id
+
+    monkeypatch.setattr(main_window, "ChecklistWorker", _SpyWorker)
+
+    sentinela = object()
+    w = MainWindow(_dvr(), app_config, snapshot_repo=sentinela, instalacao_id=5)
+    qtbot.addWidget(w)
+    qtbot.mouseClick(w.btn_iniciar, Qt.MouseButton.LeftButton)
+
+    assert capturado["snapshot_repo"] is sentinela
+    assert capturado["instalacao_id"] == 5
 
 
 def test_on_progress_acrescenta_mensagem_ao_log(qtbot, app_config):

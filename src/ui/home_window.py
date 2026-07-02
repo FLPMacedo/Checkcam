@@ -10,8 +10,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from typing import Optional
+
 from src.infra.backup import exportar, importar, restaurar_no_repo
 from src.infra.instalacao_repo import InstalacaoRepository
+from src.infra.snapshot_repo import SnapshotRepository
 from src.ui.instalacao_selector import InstalacaoSelectorWidget
 from src.ui.main_window import MainWindow
 
@@ -26,9 +29,15 @@ class HomeWindow(QMainWindow):
       - Restaurar Backup (← JSON, merge — pula nomes já existentes)
     """
 
-    def __init__(self, repo: InstalacaoRepository, parent=None) -> None:
+    def __init__(
+        self,
+        repo: InstalacaoRepository,
+        parent=None,
+        snapshot_repo: Optional[SnapshotRepository] = None,
+    ) -> None:
         super().__init__(parent)
         self._repo = repo
+        self._snapshot_repo = snapshot_repo
         self._checklist_windows: list[MainWindow] = []
         self.setWindowTitle("CheckCam – Gerenciador de Instalações")
         self.setMinimumSize(560, 460)
@@ -82,7 +91,13 @@ class HomeWindow(QMainWindow):
             return
 
         config = inst.to_app_config()
-        win = MainWindow(inst.dvrs, config, parent=None)
+        win = MainWindow(
+            inst.dvrs,
+            config,
+            parent=None,
+            snapshot_repo=self._snapshot_repo,
+            instalacao_id=inst.id,
+        )
         win.setWindowTitle(f"CheckCam – {inst.nome}")
         win.show()
         self._checklist_windows.append(win)

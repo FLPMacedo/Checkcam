@@ -196,3 +196,67 @@ def test_sem_email_review_fn_envia_por_padrao(app_config, monkeypatch):
 
     assert result.email_enviado is True
     assert len(enviados) == 1
+
+
+# ─── Persistência de snapshot ────────────────────────────────────────────────
+
+
+class _FakeSnapshotRepo:
+    """Fake que conta chamadas de gravar e registra a ordem via callback."""
+
+    def __init__(self, proximo_id=42, on_gravar=None):
+        self.calls = []
+        self._proximo_id = proximo_id
+        self._on_gravar = on_gravar
+
+    def gravar(self, instalacao_id, resultado):
+        if self._on_gravar:
+            self._on_gravar()
+        self.calls.append((instalacao_id, resultado))
+        return self._proximo_id
+
+
+def test_executar_grava_snapshot_ao_final(app_config, monkeypatch):
+    """Com snapshot_repo, executar grava um snapshot DEPOIS de enviar o e-mail."""
+    _patch_pipeline(monkeypatch)
+    ordem = []
+    monkeypatch.setattr(checklist_service, "enviar_draft",
+                        lambda draft, cfg: ordem.append("email") or "/fake/backup.txt")
+    fake = _FakeSnapshotRepo(on_gravar=lambda: ordem.append("snapshot"))
+
+    dvr = DVR(nome="DVR_TESTE", ip="192.168.1.1", qtd_cameras=1)
+    result = ChecklistService(
+        app_config, snapshot_repo=fake, instalacao_id=7
+    ).executar([dvr])
+
+    assert ordem == ["email", "snapshot"]        # grava após o e-mail
+    assert len(fake.calls) == 1
+    assert fake.calls[0][0] == 7                  # instalacao_id repassado
+    assert fake.calls[0][1] is result            # grava o próprio resultado
+    assert result.snapshot_id == 42              # id devolvido preenche o result
+
+
+def test_executar_sem_snapshot_repo_nao_grava(app_config, monkeypatch):
+    """Sem snapshot_repo, nada é gravado e snapshot_id fica 0 (comportamento legado)."""
+    _patch_pipeline(monkeypatch)
+    dvr = DVR(nome="DVR_TESTE", ip="192.168.1.1", qtd_cameras=1)
+
+    result = ChecklistService(app_config).executar([dvr])
+
+    assert result.snapshot_id == 0
+
+
+def test_executar_grava_snapshot_mesmo_com_email_cancelado(app_config, monkeypatch):
+    """O histórico registra o checklist mesmo se o envio do e-mail for cancelado."""
+    _patch_pipeline(monkeypatch)
+    fake = _FakeSnapshotRepo()
+
+    dvr = DVR(nome="DVR_TESTE", ip="192.168.1.1", qtd_cameras=1)
+    result = ChecklistService(
+        app_config, snapshot_repo=fake, instalacao_id=3,
+        email_review_fn=lambda d: None,
+    ).executar([dvr])
+
+    assert result.email_enviado is False
+    assert len(fake.calls) == 1
+    assert result.snapshot_id == 42

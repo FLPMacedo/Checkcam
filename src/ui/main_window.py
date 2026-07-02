@@ -18,9 +18,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from typing import Optional
+
 from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
 from src.domain.models import DVR, cameras_para_revisar, todas_as_cameras
 from src.infra.app_config import AppConfig
+from src.infra.snapshot_repo import SnapshotRepository
 from src.ui.email_preview_dialog import EmailPreviewDialog
 from src.ui.visual_review_dialog import VisualReviewDialog
 from src.ui.worker import ChecklistWorker
@@ -68,10 +71,19 @@ class MainWindow(QMainWindow):
     que replica a saída do CMD do sistema legado.
     """
 
-    def __init__(self, dvrs: List[DVR], config: AppConfig, parent=None) -> None:
+    def __init__(
+        self,
+        dvrs: List[DVR],
+        config: AppConfig,
+        parent=None,
+        snapshot_repo: Optional[SnapshotRepository] = None,
+        instalacao_id: int = 0,
+    ) -> None:
         super().__init__(parent)
         self._dvrs = dvrs
         self._config = config
+        self._snapshot_repo = snapshot_repo
+        self._instalacao_id = instalacao_id
         self._worker: ChecklistWorker | None = None
         self._pending_dvrs: List[DVR] = []
         self._review_dialog: VisualReviewDialog | None = None
@@ -137,7 +149,12 @@ class MainWindow(QMainWindow):
         self.log_area.clear()
         self._log(f"▶ Iniciando checklist — {self._config.nome_instalacao}")
 
-        self._worker = ChecklistWorker(self._dvrs, self._config)
+        self._worker = ChecklistWorker(
+            self._dvrs,
+            self._config,
+            snapshot_repo=self._snapshot_repo,
+            instalacao_id=self._instalacao_id,
+        )
         self._worker.progress_signal.connect(self._on_progress)
         self._worker.log_signal.connect(self._on_log_detalhe)
         self._worker.capture_done_signal.connect(self._on_capture_done)

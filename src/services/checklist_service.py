@@ -8,6 +8,7 @@ from src.core.visual_review import analisar_visual
 from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
 from src.domain.models import DVR
 from src.infra.app_config import AppConfig
+from src.infra.snapshot_repo import SnapshotRepository
 from src.reports.book_builder import gerar_book_excel
 from src.reports.email_sender import compor_email, enviar_draft
 from src.reports.excel_builder import gerar_excel
@@ -46,6 +47,8 @@ class ChecklistService:
         visual_review_fn: Optional[_VisualFn] = None,
         on_log: Optional[Callable[[str], None]] = None,
         email_review_fn: Optional[_EmailReviewFn] = None,
+        snapshot_repo: Optional[SnapshotRepository] = None,
+        instalacao_id: int = 0,
     ) -> None:
         self._config = config
         self._on_progress = on_progress or (lambda e: None)
@@ -53,6 +56,9 @@ class ChecklistService:
         self._on_log = on_log  # None → core usa print()
         # Default: identidade → envia o rascunho como está (comportamento legado).
         self._email_review_fn: _EmailReviewFn = email_review_fn or (lambda d: d)
+        # Persistência opcional: se presente, grava um snapshot ao fim do pipeline.
+        self._snapshot_repo = snapshot_repo
+        self._instalacao_id = instalacao_id
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -91,7 +97,7 @@ class ChecklistService:
         if email_enviado:
             enviar_draft(draft, self._config)
 
-        return ChecklistResult(
+        result = ChecklistResult(
             dvrs=dvrs,
             excel_path=excel_path,
             pdf_path=pdf_path,
@@ -99,3 +105,12 @@ class ChecklistService:
             book_path=book_path,
             email_enviado=email_enviado,
         )
+
+        # Persiste o snapshot depois do e-mail. Roda mesmo se o envio for
+        # cancelado — o histórico do dashboard registra todo checklist executado.
+        if self._snapshot_repo is not None:
+            result.snapshot_id = self._snapshot_repo.gravar(
+                self._instalacao_id, result
+            )
+
+        return result

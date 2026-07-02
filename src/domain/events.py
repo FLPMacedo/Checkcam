@@ -43,3 +43,4 @@ class ChecklistResult:
     sucesso: bool = True
     erro: str = ""
     email_enviado: bool = True  # False se o usuário cancelou no preview
+    snapshot_id: int = 0        # id do snapshot persistido (0 = não gravado)
