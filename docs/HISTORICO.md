@@ -74,6 +74,46 @@ exige a chave (não a senha) no RTSP. Fluxo:
 - Novos testes: `test_rtsp.py`, `test_intelbras_cgi.py`,
   `test_email_preview_dialog.py`
 
+## v1.2.0 — Dashboard web-in-window (Flask + pywebview)
+
+### Feature principal
+**Dashboard de status por instalação.** Cada checklist executado grava um
+snapshot no banco; o dashboard lê esses snapshots e mostra overview (cards
+verde/amarelo/vermelho por instalação) + drill-down (DVRs, HD, câmeras) com
+gráfico de trend histórico. Abre como janela nativa (pywebview), sem browser.
+
+### Estrutura nova
+- `src/domain/snapshot.py` — `Snapshot`/`SnapshotDVR` + `snapshot_de_resultado`
+  (agregação pura; categorias exclusivas ok/alerta/sem_conexao/nao_instaladas)
+- `src/infra/snapshot_repo.py` + tabelas `snapshots`/`snapshot_dvrs` (migração
+  não-destrutiva via `CREATE TABLE IF NOT EXISTS`)
+- `dashboard/` — Flask factory `create_app(db_path)`, rotas `/overview`,
+  `/instalacao/<id>`, `/api/historico/<id>`; `views._classificar_saude`
+  (vermelho = hd_erro/offline/sem_conexão, amarelo = só alertas, verde = ok);
+  templates Jinja + `static/style.css` (dark) + `static/charts.js` (Chart.js);
+  `desktop.py` (pywebview, modo `HEADLESS=1`)
+- `src/ui/dashboard_launcher.py` — `spawn_dashboard(db_path)`, ciente de
+  `sys.frozen`
+
+### Integração
+- `ChecklistService` grava snapshot após o e-mail (params `snapshot_repo` +
+  `instalacao_id`, descem de `app.py` por Home → Main → Worker);
+  `ChecklistResult.snapshot_id`
+- Botão **"📊 Abrir Dashboard"** na HomeWindow, no cabeçalho da MainWindow e
+  no popup final do checklist
+
+### Empacotamento
+- **EXE único:** `main.py` roteia `--dashboard` para o modo pywebview;
+  `spawn_dashboard` re-executa o próprio EXE quando congelado
+- `CheckCam.spec` (onefile) embute `dashboard/templates`+`static`, faz
+  `collect_all` de `webview` e inclui `win32com`; `build_exe.ps1` automatiza
+
+### Números
+- **324 testes** verdes (era 278 em v1.1)
+- Novos módulos: `snapshot.py`, `snapshot_repo.py`, `dashboard_launcher.py`,
+  pacote `dashboard/` completo
+- Novas deps: `flask>=3.0`, `pywebview>=5.0`
+
 ## Fases 0-7 (durante v1.0)
 
 Sequência das fases originais da refatoração:

@@ -3,7 +3,12 @@
 > **📋 Plano de execução:** o dashboard tem seu próprio arquivo com fases
 > e tasks marcáveis: [PLANO_DASHBOARD.md](PLANO_DASHBOARD.md)
 
-## 1. Dashboard web-in-window (prioridade)
+## 1. Dashboard web-in-window ✅ CONCLUÍDO (v1.2.0)
+
+> **✅ Entregue** seguindo o [PLANO_DASHBOARD.md](PLANO_DASHBOARD.md) (Fases 0-8).
+> Pacote `dashboard/` (Flask + pywebview), snapshots no banco, botão na UI e
+> EXE único. Ver [HISTORICO.md](HISTORICO.md#v120--dashboard-web-in-window-flask--pywebview).
+> A descrição abaixo é o plano original, mantido como referência.
 
 **Objetivo:** dashboard que mostra estado atual por instalação, no estilo
 Flask + pywebview (mesmo padrão do projeto UniFi em

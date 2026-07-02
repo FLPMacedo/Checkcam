@@ -43,6 +43,31 @@ dependências externas (COM, subprocess, Playwright, cv2) têm fakes/mocks.
 └─────────────────────────────────────────────────────────┘
 ```
 
+## Dashboard (camada de leitura)
+
+O pacote `dashboard/` é um app Flask separado que **só lê** o banco — não toca
+no pipeline. Roda numa janela nativa (pywebview) ou no navegador.
+
+```
+dashboard/
+├── app.py       create_app(db_path) — Flask factory (templates/static
+│                resolvidos de sys._MEIPASS quando empacotado)
+├── routes.py    /overview, /instalacao/<id>, /api/historico/<id>, /
+├── views.py     agregadores + _classificar_saude (verde/amarelo/vermelho)
+├── desktop.py   pywebview wrapper (thread daemon + porta livre; HEADLESS=1)
+├── templates/   base, overview, instalacao (Jinja)
+└── static/      style.css (dark theme), charts.js (Chart.js CDN)
+```
+
+Fluxo dos dados:
+1. `ChecklistService.executar()` grava um `Snapshot` via `SnapshotRepository`
+   após o e-mail (`src/domain/snapshot.py` faz a agregação pura).
+2. O dashboard lê os snapshots: overview = último por instalação;
+   drill-down = detalhe por DVR; histórico = série para o gráfico de trend.
+3. O botão "📊 Abrir Dashboard" (`src/ui/dashboard_launcher.py`) spawna o
+   dashboard em outro processo. Empacotado, o EXE se re-executa com
+   `--dashboard` (`main.py` roteia).
+
 ## Pipeline (`ChecklistService.executar`)
 
 ```
