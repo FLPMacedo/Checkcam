@@ -32,3 +32,10 @@
 <p class="vazio">Nenhum checklist executado ainda para esta instalação.</p>
 {% endif %}
 {% endblock %}
+
+{% block scripts %}
+{% if snapshot %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="{{ url_for('static', filename='charts.js') }}"></script>
+{% endif %}
+{% endblock %}

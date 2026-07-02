@@ -91,6 +91,27 @@ def test_instalacao_inexistente_404(client):
     assert client.get("/instalacao/99999").status_code == 404
 
 
+def test_overview_card_tem_classe_de_saude(client):
+    """Loja A tem HD com erro → card marcado como vermelho para o CSS colorir."""
+    html = client.get("/overview").get_data(as_text=True)
+    assert "saude-vermelho" in html
+
+
+def test_instalacao_inclui_canvas_de_trend(client, seeded):
+    _, loja_a, _ = seeded
+    html = client.get(f"/instalacao/{loja_a}").get_data(as_text=True)
+    assert 'id="trend-chart"' in html
+    assert f'data-instalacao="{loja_a}"' in html
+
+
+def test_instalacao_carrega_chartjs_e_script_de_trend(client, seeded):
+    """A página de drill-down puxa o Chart.js e o charts.js do dashboard."""
+    _, loja_a, _ = seeded
+    html = client.get(f"/instalacao/{loja_a}").get_data(as_text=True)
+    assert "chart.js" in html.lower()
+    assert "charts.js" in html
+
+
 def test_historico_json(client, seeded):
     _, loja_a, _ = seeded
     resp = client.get(f"/api/historico/{loja_a}")
