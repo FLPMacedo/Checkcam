@@ -32,7 +32,9 @@ CREATE TABLE IF NOT EXISTS dvrs (
     porta_rtsp         TEXT    NOT NULL DEFAULT '',
     usuario            TEXT    NOT NULL DEFAULT '',
     senha              TEXT    NOT NULL DEFAULT '',
-    chave_criptografia TEXT    NOT NULL DEFAULT ''
+    chave_criptografia   TEXT    NOT NULL DEFAULT '',
+    chave_criptografia_2 TEXT    NOT NULL DEFAULT '',
+    chave_criptografia_3 TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS emails (
@@ -83,7 +85,9 @@ _COLUNAS_DVR_NOVAS = {
     "porta_rtsp":         "TEXT NOT NULL DEFAULT ''",
     "usuario":            "TEXT NOT NULL DEFAULT ''",
     "senha":              "TEXT NOT NULL DEFAULT ''",
-    "chave_criptografia": "TEXT NOT NULL DEFAULT ''",
+    "chave_criptografia":   "TEXT NOT NULL DEFAULT ''",
+    "chave_criptografia_2": "TEXT NOT NULL DEFAULT ''",
+    "chave_criptografia_3": "TEXT NOT NULL DEFAULT ''",
 }
 
 

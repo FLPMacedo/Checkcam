@@ -44,7 +44,8 @@ class InstalacaoRepository:
 
             dvr_rows = conn.execute(
                 "SELECT nome, ip, qtd_cameras, marca, tipo, porta_http, "
-                "porta_rtsp, usuario, senha, chave_criptografia "
+                "porta_rtsp, usuario, senha, chave_criptografia, "
+                "chave_criptografia_2, chave_criptografia_3 "
                 "FROM dvrs WHERE instalacao_id = ? ORDER BY id",
                 (id,),
             ).fetchall()
@@ -79,6 +80,8 @@ class InstalacaoRepository:
                     usuario=r["usuario"],
                     senha=r["senha"],
                     chave_criptografia=r["chave_criptografia"],
+                    chave_criptografia_2=r["chave_criptografia_2"],
+                    chave_criptografia_3=r["chave_criptografia_3"],
                 )
                 for r in dvr_rows
             ],
@@ -129,14 +132,16 @@ class InstalacaoRepository:
                 conn.execute(
                     "INSERT INTO dvrs (instalacao_id, nome, ip, qtd_cameras, "
                     "marca, tipo, porta_http, porta_rtsp, usuario, senha, "
-                    "chave_criptografia) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "chave_criptografia, chave_criptografia_2, chave_criptografia_3) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         inst.id, dvr.nome, dvr.ip, dvr.qtd_cameras,
                         str(dvr.marca), str(dvr.tipo),
                         dvr.porta_http, dvr.porta_rtsp,
                         dvr.usuario, dvr.senha,
                         dvr.chave_criptografia,
+                        dvr.chave_criptografia_2,
+                        dvr.chave_criptografia_3,
                     ),
                 )
 

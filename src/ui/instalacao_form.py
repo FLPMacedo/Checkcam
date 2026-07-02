@@ -31,7 +31,8 @@ from src.infra.path_defaults import caminhos_padrao_para
 
 # Colunas da tabela de dispositivos (DVRs/câmeras).
 _COL_NOME, _COL_IP, _COL_CAMERAS, _COL_MARCA, _COL_TIPO, \
-    _COL_PHTTP, _COL_PRTSP, _COL_USER, _COL_SENHA, _COL_CHAVE = range(10)
+    _COL_PHTTP, _COL_PRTSP, _COL_USER, _COL_SENHA, \
+    _COL_CHAVE, _COL_CHAVE2, _COL_CHAVE3 = range(12)
 
 _MARCAS = [Marca.HIKVISION, Marca.INTELBRAS]
 _TIPOS = [TipoDispositivo.DVR, TipoDispositivo.CAMERA_IP]
@@ -94,10 +95,11 @@ class InstalacaoFormDialog(QDialog):
         dvr_box = QGroupBox("Dispositivos (DVR/NVR e câmeras IP)")
         dvr_lay = QVBoxLayout(dvr_box)
 
-        self._dvr_table = QTableWidget(0, 10)
+        self._dvr_table = QTableWidget(0, 12)
         self._dvr_table.setHorizontalHeaderLabels(
             ["Nome", "IP", "Câmeras", "Marca", "Tipo",
-             "Porta HTTP", "Porta RTSP", "Usuário", "Senha", "Chave criptografia"],
+             "Porta HTTP", "Porta RTSP", "Usuário", "Senha",
+             "Chave 1", "Chave 2", "Chave 3"],
         )
         header = self._dvr_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -106,8 +108,8 @@ class InstalacaoFormDialog(QDialog):
         self._dvr_table.setToolTip(
             "Porta HTTP/RTSP, Usuário e Senha são opcionais: em branco, "
             "herdam o valor da instalação.\n"
-            "Chave de criptografia: usada como senha alternativa para câmeras\n"
-            "Hikvision com 'verification code' ativado (retry no capture).\n"
+            "Chave 1/2/3: senhas alternativas para câmeras Hikvision com\n"
+            "'verification code' ativado — testadas em ordem se a senha falhar.\n"
             "Câmera IP é capturada direto pelo próprio IP (canal único)."
         )
         dvr_lay.addWidget(self._dvr_table)
@@ -204,6 +206,8 @@ class InstalacaoFormDialog(QDialog):
         self._dvr_table.setItem(row, _COL_USER, QTableWidgetItem(dvr.usuario))
         self._dvr_table.setItem(row, _COL_SENHA, QTableWidgetItem(dvr.senha))
         self._dvr_table.setItem(row, _COL_CHAVE, QTableWidgetItem(dvr.chave_criptografia))
+        self._dvr_table.setItem(row, _COL_CHAVE2, QTableWidgetItem(dvr.chave_criptografia_2))
+        self._dvr_table.setItem(row, _COL_CHAVE3, QTableWidgetItem(dvr.chave_criptografia_3))
 
     def _adicionar_dvr(self) -> None:
         self._inserir_linha_dvr()
@@ -283,6 +287,8 @@ class InstalacaoFormDialog(QDialog):
                     usuario=self._texto_celula(row, _COL_USER),
                     senha=self._texto_celula(row, _COL_SENHA),
                     chave_criptografia=self._texto_celula(row, _COL_CHAVE),
+                    chave_criptografia_2=self._texto_celula(row, _COL_CHAVE2),
+                    chave_criptografia_3=self._texto_celula(row, _COL_CHAVE3),
                 ))
 
         emails = [

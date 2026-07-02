@@ -76,6 +76,15 @@ def rtsp_url_com_chave_criptografia(device: DVR, canal: int, config: AppConfig) 
     return _montar_url(device, canal, config, device.chave_criptografia)
 
 
+def rtsp_url_com_chave(device: DVR, canal: int, config: AppConfig, chave: str) -> str:
+    """Monta a URL RTSP usando uma chave arbitrária no lugar da senha.
+
+    Usado pelo camera_capture para testar cada chave de ``device`` (até 3)
+    quando a captura com a senha normal falha.
+    """
+    return _montar_url(device, canal, config, chave)
+
+
 def _montar_url(device: DVR, canal: int, config: AppConfig, senha: str) -> str:
     """Internal: monta a URL RTSP com a senha fornecida (usado pelo retry)."""
     usuario = resolver_usuario(device, config)

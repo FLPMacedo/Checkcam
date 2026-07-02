@@ -51,8 +51,24 @@ class DVR:
     chave_criptografia: str = ""   # opcional — se o capture com a senha
     # normal falhar, o camera_capture refaz a tentativa com a chave aqui
     # como senha (caso comum: 'verification code' do Hikvision ativado)
+    chave_criptografia_2: str = ""   # 2ª e 3ª chaves alternativas — testadas
+    chave_criptografia_3: str = ""   # em ordem se as anteriores não abrirem
     hd: HDStatus = field(default_factory=HDStatus)
     cameras: List[Camera] = field(default_factory=list)
+
+    def chaves_criptografia(self) -> List[str]:
+        """As chaves de criptografia configuradas (não vazias), em ordem.
+
+        O ``camera_capture`` tenta cada uma como senha alternativa quando a
+        captura com a senha normal falha por autenticação.
+        """
+        return [
+            k for k in (
+                self.chave_criptografia,
+                self.chave_criptografia_2,
+                self.chave_criptografia_3,
+            ) if k
+        ]
 
 
 def todas_as_cameras(dvrs: Iterable[DVR]) -> List[Camera]:

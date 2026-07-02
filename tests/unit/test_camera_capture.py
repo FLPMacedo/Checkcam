@@ -270,6 +270,81 @@ def test_chave_nao_e_usada_quando_senha_normal_funciona(
     assert result[0].cameras[0].status == "PENDENTE"
 
 
+def _fake_run_sucesso_com_chave(chave_ok: str, comandos: list):
+    """Fake: cria arquivo GRANDE só quando ``chave_ok`` está na URL; senão PEQUENO."""
+    def _run(cmd, **kwargs):
+        comandos.append(cmd)
+        from tests.fakes.fake_subprocess import FakeCompletedProcess
+        rtsp = cmd[cmd.index("-i") + 1]
+        img = cmd[-1]
+        grande = chave_ok in rtsp
+        with open(img, "wb") as f:
+            f.write(b"\xff\xd8" + b"\x00" * (20000 if grande else 100))
+        return FakeCompletedProcess(returncode=0)
+    return _run
+
+
+def test_tenta_ate_a_terceira_chave_quando_as_anteriores_falham(app_config, monkeypatch):
+    """Com 3 chaves, testa cada uma em ordem até a que funciona."""
+    from pathlib import Path
+
+    comandos = []
+    monkeypatch.setattr("subprocess.run", _fake_run_sucesso_com_chave("CHAVE_C", comandos))
+
+    dvr = _make_online_dvr(nome="DVR_3CH", qtd=1)
+    dvr.chave_criptografia = "CHAVE_A"
+    dvr.chave_criptografia_2 = "CHAVE_B"
+    dvr.chave_criptografia_3 = "CHAVE_C"
+    (Path(app_config.base_dir) / dvr.nome).mkdir(parents=True, exist_ok=True)
+
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    # senha normal + A + B + C = 4 tentativas
+    assert len(comandos) == 4
+    assert "CHAVE_A" in comandos[1][comandos[1].index("-i") + 1]
+    assert "CHAVE_B" in comandos[2][comandos[2].index("-i") + 1]
+    assert "CHAVE_C" in comandos[3][comandos[3].index("-i") + 1]
+    assert result[0].cameras[0].status == "PENDENTE"
+
+
+def test_para_na_primeira_chave_que_funciona(app_config, monkeypatch):
+    """Achou na 1ª chave → não testa as seguintes."""
+    from pathlib import Path
+
+    comandos = []
+    monkeypatch.setattr("subprocess.run", _fake_run_sucesso_com_chave("CHAVE_A", comandos))
+
+    dvr = _make_online_dvr(nome="DVR_1OK", qtd=1)
+    dvr.chave_criptografia = "CHAVE_A"
+    dvr.chave_criptografia_2 = "CHAVE_B"
+    dvr.chave_criptografia_3 = "CHAVE_C"
+    (Path(app_config.base_dir) / dvr.nome).mkdir(parents=True, exist_ok=True)
+
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    # senha normal + A(sucesso) = 2 tentativas; B e C não são testadas
+    assert len(comandos) == 2
+    assert result[0].cameras[0].status == "PENDENTE"
+
+
+def test_todas_as_chaves_falham_resulta_sem_conexao(app_config, monkeypatch):
+    from pathlib import Path
+
+    comandos = []
+    monkeypatch.setattr("subprocess.run", _fake_run_sucesso_com_chave("NENHUMA", comandos))
+
+    dvr = _make_online_dvr(nome="DVR_FAIL", qtd=1)
+    dvr.chave_criptografia = "CHAVE_A"
+    dvr.chave_criptografia_2 = "CHAVE_B"
+    (Path(app_config.base_dir) / dvr.nome).mkdir(parents=True, exist_ok=True)
+
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    # senha + A + B = 3 tentativas, todas falham
+    assert len(comandos) == 3
+    assert result[0].cameras[0].status == "SEM_CONEXAO"
+
+
 def test_timeout_nao_dispara_retry_com_chave(app_config, monkeypatch):
     """TIMEOUT é problema de rede, não de credencial. Retry seria desperdício."""
     comandos = []

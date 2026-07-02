@@ -56,6 +56,8 @@ def _inst_para_dict(inst: Instalacao) -> dict:
                 "usuario": d.usuario,
                 "senha": d.senha,
                 "chave_criptografia": d.chave_criptografia,
+                "chave_criptografia_2": d.chave_criptografia_2,
+                "chave_criptografia_3": d.chave_criptografia_3,
             }
             for d in inst.dvrs
         ],
@@ -114,7 +116,9 @@ def _dict_para_inst(d: dict) -> Instalacao:
                 porta_rtsp=         dv.get("porta_rtsp", ""),
                 usuario=            dv.get("usuario", ""),
                 senha=              dv.get("senha", ""),
-                chave_criptografia= dv.get("chave_criptografia", ""),
+                chave_criptografia=   dv.get("chave_criptografia", ""),
+                chave_criptografia_2= dv.get("chave_criptografia_2", ""),
+                chave_criptografia_3= dv.get("chave_criptografia_3", ""),
             )
             for dv in d.get("dvrs", [])
         ],

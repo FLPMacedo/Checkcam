@@ -4,7 +4,7 @@ import os
 import subprocess
 from typing import Callable, List, Optional
 
-from src.core.rtsp import rtsp_url, rtsp_url_com_chave_criptografia
+from src.core.rtsp import rtsp_url, rtsp_url_com_chave
 from src.domain.device import TipoDispositivo
 from src.domain.models import Camera, DVR
 from src.domain.status import CameraStatus
@@ -73,16 +73,19 @@ def capturar_cameras(
                 rtsp_url(dvr, i, config), img_path, config.ffmpeg_path
             )
 
-            # 2ª tentativa (se houver chave): repete com chave_criptografia
-            # no lugar da senha — caso comum em Hikvision com 'verification
-            # code' ativado.
-            if not sucesso and not timeout and dvr.chave_criptografia:
-                _log(f"   🔑 {cam_nome} ... tentando com chave de criptografia")
-                sucesso, timeout = _tentar_capturar(
-                    rtsp_url_com_chave_criptografia(dvr, i, config),
-                    img_path,
-                    config.ffmpeg_path,
-                )
+            # Retry (se a senha falhou, mas não por timeout): testa cada chave
+            # de criptografia em ordem até uma abrir o stream. Caso comum em
+            # Hikvision com 'verification code' ativado.
+            if not sucesso and not timeout:
+                for chave in dvr.chaves_criptografia():
+                    _log(f"   🔑 {cam_nome} ... tentando com chave de criptografia")
+                    sucesso, timeout = _tentar_capturar(
+                        rtsp_url_com_chave(dvr, i, config, chave),
+                        img_path,
+                        config.ffmpeg_path,
+                    )
+                    if sucesso or timeout:
+                        break
 
             if sucesso:
                 dvr.cameras.append(

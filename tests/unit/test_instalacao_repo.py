@@ -124,6 +124,25 @@ def test_chave_de_criptografia_persiste_no_banco(repo):
     assert loaded.dvrs[0].chave_criptografia == "MINHA_CHAVE_HIKVISION_123"
 
 
+def test_tres_chaves_de_criptografia_persistem(repo):
+    """Round-trip das 3 chaves de criptografia por DVR."""
+    inst = _inst(
+        nome="TresChaves",
+        dvrs=[
+            DVR(nome="HIK", ip="1.1.1.1", qtd_cameras=4,
+                chave_criptografia="K1", chave_criptografia_2="K2",
+                chave_criptografia_3="K3"),
+        ],
+    )
+    saved = repo.salvar(inst)
+    d = repo.obter(saved.id).dvrs[0]
+
+    assert d.chave_criptografia == "K1"
+    assert d.chave_criptografia_2 == "K2"
+    assert d.chave_criptografia_3 == "K3"
+    assert d.chaves_criptografia() == ["K1", "K2", "K3"]
+
+
 def test_dvr_sem_chave_volta_string_vazia(repo):
     """DVR sem chave configurada continua com string vazia (não None)."""
     inst = _inst(

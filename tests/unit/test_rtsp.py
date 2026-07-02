@@ -98,6 +98,14 @@ def test_rtsp_url_com_chave_sem_chave_levanta_value_error(app_config):
         rtsp.rtsp_url_com_chave_criptografia(dvr, 1, app_config)
 
 
+def test_rtsp_url_com_chave_usa_a_chave_informada(app_config):
+    """rtsp_url_com_chave monta a URL com uma chave arbitrária (2ª/3ª chave)."""
+    dvr = _dvr(usuario="u", senha="senha_normal")
+    url = rtsp.rtsp_url_com_chave(dvr, 1, app_config, "SEGUNDA_CHAVE")
+    assert "SEGUNDA_CHAVE" in url
+    assert "senha_normal" not in url
+
+
 def test_rtsp_url_normal_nao_e_afetada_pela_chave(app_config):
     """Presença de chave não muda a URL normal (só vale no retry)."""
     dvr = _dvr(usuario="u", senha="s", chave_criptografia="CHAVE")

@@ -82,3 +82,22 @@ def test_dvr_aceita_hd_customizado():
     hd = HDStatus(total="3000.00 GB", livre="1500.00 GB", status="ONLINE - NORMAL")
     dvr = DVR(nome="DVR_B", ip="192.168.1.2", qtd_cameras=2, hd=hd)
     assert dvr.hd.status == "ONLINE - NORMAL"
+
+
+# ─── Chaves de criptografia (até 3) ──────────────────────────────────────────
+
+def test_chaves_criptografia_lista_as_nao_vazias_em_ordem():
+    dvr = DVR(nome="D", ip="1.1.1.1", qtd_cameras=1,
+              chave_criptografia="A", chave_criptografia_2="", chave_criptografia_3="C")
+    assert dvr.chaves_criptografia() == ["A", "C"]
+
+
+def test_chaves_criptografia_vazia_quando_nenhuma_configurada():
+    dvr = DVR(nome="D", ip="1.1.1.1", qtd_cameras=1)
+    assert dvr.chaves_criptografia() == []
+
+
+def test_chaves_criptografia_preserva_ordem_das_tres():
+    dvr = DVR(nome="D", ip="1.1.1.1", qtd_cameras=1,
+              chave_criptografia="1", chave_criptografia_2="2", chave_criptografia_3="3")
+    assert dvr.chaves_criptografia() == ["1", "2", "3"]
