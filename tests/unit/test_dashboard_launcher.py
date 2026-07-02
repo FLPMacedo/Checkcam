@@ -20,6 +20,23 @@ def test_spawn_dashboard_chama_popen_com_modulo(monkeypatch):
     assert capturado["kwargs"]["env"]["CHECKCAM_DB"] == "C:/dados/checkcam.db"
 
 
+def test_spawn_dashboard_congelado_usa_argumento(monkeypatch):
+    """Empacotado (sys.frozen), re-executa o próprio EXE com --dashboard."""
+    capturado = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            capturado["args"] = args
+
+    monkeypatch.setattr(dashboard_launcher.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(dashboard_launcher.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(dashboard_launcher.sys, "executable", "C:/app/CheckCam.exe")
+
+    dashboard_launcher.spawn_dashboard()
+
+    assert capturado["args"] == ["C:/app/CheckCam.exe", "--dashboard"]
+
+
 def test_spawn_dashboard_sem_db_herda_ambiente(monkeypatch):
     capturado = {}
 

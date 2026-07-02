@@ -20,6 +20,12 @@ def spawn_dashboard(db_path: str = "") -> subprocess.Popen:
     env = None
     if db_path:
         env = {**os.environ, "CHECKCAM_DB": db_path}
-    return subprocess.Popen(
-        [sys.executable, "-m", "dashboard.desktop"], env=env
-    )
+
+    if getattr(sys, "frozen", False):
+        # Empacotado: o próprio EXE roteia --dashboard para o modo pywebview
+        # (não há interpretador Python nem o módulo dashboard.desktop solto).
+        cmd = [sys.executable, "--dashboard"]
+    else:
+        cmd = [sys.executable, "-m", "dashboard.desktop"]
+
+    return subprocess.Popen(cmd, env=env)
