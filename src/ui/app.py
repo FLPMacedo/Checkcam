@@ -20,6 +20,6 @@ def run(db_path: str = "checkcam.db") -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     repo = InstalacaoRepository(db_path)
     snapshot_repo = SnapshotRepository(db_path)
-    window = HomeWindow(repo, snapshot_repo=snapshot_repo)
+    window = HomeWindow(repo, snapshot_repo=snapshot_repo, db_path=db_path)
     window.show()
     return app.exec()

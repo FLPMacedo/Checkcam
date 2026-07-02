@@ -24,6 +24,7 @@ from src.domain.events import ChecklistResult, EmailDraft, ProgressEvent
 from src.domain.models import DVR, cameras_para_revisar, todas_as_cameras
 from src.infra.app_config import AppConfig
 from src.infra.snapshot_repo import SnapshotRepository
+from src.ui.dashboard_launcher import spawn_dashboard
 from src.ui.email_preview_dialog import EmailPreviewDialog
 from src.ui.visual_review_dialog import VisualReviewDialog
 from src.ui.worker import ChecklistWorker
@@ -78,12 +79,14 @@ class MainWindow(QMainWindow):
         parent=None,
         snapshot_repo: Optional[SnapshotRepository] = None,
         instalacao_id: int = 0,
+        db_path: str = "",
     ) -> None:
         super().__init__(parent)
         self._dvrs = dvrs
         self._config = config
         self._snapshot_repo = snapshot_repo
         self._instalacao_id = instalacao_id
+        self._db_path = db_path
         self._worker: ChecklistWorker | None = None
         self._pending_dvrs: List[DVR] = []
         self._review_dialog: VisualReviewDialog | None = None
@@ -119,11 +122,18 @@ class MainWindow(QMainWindow):
         cred.addStretch()
         root.addLayout(cred)
 
-        # ── Botão ─────────────────────────────────────────────────────────────
+        # ── Botões ────────────────────────────────────────────────────────────
+        botoes = QHBoxLayout()
         self.btn_iniciar = QPushButton("▶  Iniciar Checklist")
         self.btn_iniciar.setFixedHeight(36)
         self.btn_iniciar.clicked.connect(self._iniciar)
-        root.addWidget(self.btn_iniciar)
+        botoes.addWidget(self.btn_iniciar, stretch=1)
+
+        self.btn_dashboard = QPushButton("📊  Abrir Dashboard")
+        self.btn_dashboard.setFixedHeight(36)
+        self.btn_dashboard.clicked.connect(self._abrir_dashboard)
+        botoes.addWidget(self.btn_dashboard)
+        root.addLayout(botoes)
 
         # ── Terminal ──────────────────────────────────────────────────────────
         self.log_area = QTextEdit()
@@ -230,6 +240,10 @@ class MainWindow(QMainWindow):
             self._log("[EMAIL] Envio cancelado pelo usuário.")
             self._worker.resume_after_email(None)
 
+    def _abrir_dashboard(self) -> None:
+        """Abre o dashboard (janela nativa) em um processo separado."""
+        spawn_dashboard(self._db_path)
+
     def _on_finished(self, result: ChecklistResult) -> None:
         self._log("")
         self._log("─" * 60)
@@ -256,8 +270,23 @@ class MainWindow(QMainWindow):
             f"{linha_email}"
             f"\n\nArquivos gerados:\n  " + "\n  ".join(anexos)
         )
-        QMessageBox.information(self, "Checklist concluído", resumo)
+
+        if self._popup_conclusao(resumo):
+            self._abrir_dashboard()
         self.close()
+
+    def _popup_conclusao(self, resumo: str) -> bool:
+        """Mostra o popup final com botões OK + Abrir Dashboard.
+
+        Retorna True se o usuário escolheu abrir o dashboard.
+        """
+        box = QMessageBox(self)
+        box.setWindowTitle("Checklist concluído")
+        box.setText(resumo)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        btn_dash = box.addButton("📊  Abrir Dashboard", QMessageBox.ButtonRole.ActionRole)
+        box.exec()
+        return box.clickedButton() is btn_dash
 
     def _on_error(self, msg: str) -> None:
         self._log(f"\n❌ Erro: {msg}")

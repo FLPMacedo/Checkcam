@@ -15,6 +15,7 @@ from typing import Optional
 from src.infra.backup import exportar, importar, restaurar_no_repo
 from src.infra.instalacao_repo import InstalacaoRepository
 from src.infra.snapshot_repo import SnapshotRepository
+from src.ui.dashboard_launcher import spawn_dashboard
 from src.ui.instalacao_selector import InstalacaoSelectorWidget
 from src.ui.main_window import MainWindow
 
@@ -34,10 +35,12 @@ class HomeWindow(QMainWindow):
         repo: InstalacaoRepository,
         parent=None,
         snapshot_repo: Optional[SnapshotRepository] = None,
+        db_path: str = "",
     ) -> None:
         super().__init__(parent)
         self._repo = repo
         self._snapshot_repo = snapshot_repo
+        self._db_path = db_path
         self._checklist_windows: list[MainWindow] = []
         self.setWindowTitle("CheckCam – Gerenciador de Instalações")
         self.setMinimumSize(560, 460)
@@ -59,6 +62,12 @@ class HomeWindow(QMainWindow):
         self._btn_iniciar.setFixedHeight(40)
         self._btn_iniciar.clicked.connect(self._iniciar)
         layout.addWidget(self._btn_iniciar)
+
+        self.btn_dashboard = QPushButton("📊  Abrir Dashboard")
+        self.btn_dashboard.setFixedHeight(36)
+        self.btn_dashboard.setToolTip("Abre o painel de status das instalações")
+        self.btn_dashboard.clicked.connect(self._abrir_dashboard)
+        layout.addWidget(self.btn_dashboard)
 
         # ── linha de backup / restaurar ───────────────────────────────────────
         row = QHBoxLayout()
@@ -97,10 +106,15 @@ class HomeWindow(QMainWindow):
             parent=None,
             snapshot_repo=self._snapshot_repo,
             instalacao_id=inst.id,
+            db_path=self._db_path,
         )
         win.setWindowTitle(f"CheckCam – {inst.nome}")
         win.show()
         self._checklist_windows.append(win)
+
+    def _abrir_dashboard(self) -> None:
+        """Abre o dashboard (janela nativa) em um processo separado."""
+        spawn_dashboard(self._db_path)
 
     # ── Ações — Backup ────────────────────────────────────────────────────────
 

@@ -94,6 +94,17 @@ def test_main_window_repassa_snapshot_repo_e_instalacao_id_ao_worker(
     assert capturado["instalacao_id"] == 5
 
 
+def test_botao_abrir_dashboard_spawna_processo(qtbot, app_config, monkeypatch):
+    chamado = []
+    monkeypatch.setattr(main_window, "spawn_dashboard", lambda db="": chamado.append(db))
+
+    w = MainWindow(_dvr(), app_config, db_path="meu.db")
+    qtbot.addWidget(w)
+    qtbot.mouseClick(w.btn_dashboard, Qt.MouseButton.LeftButton)
+
+    assert chamado == ["meu.db"]
+
+
 def test_on_progress_acrescenta_mensagem_ao_log(qtbot, app_config):
     w = _window(qtbot, app_config)
 
@@ -199,16 +210,13 @@ def test_on_visual_review_done_resume_worker(qtbot, app_config):
 def test_on_finished_mostra_resumo_e_fecha_janela(qtbot, app_config, monkeypatch):
     """Quando o pipeline termina (e-mail enviado), a janela deve fechar
     automaticamente após o usuário confirmar o popup de sucesso."""
-    from PySide6.QtWidgets import QMessageBox
     from src.domain.events import ChecklistResult
 
-    # Não bloqueia o teste no popup
-    popups_mostrados = []
+    # Não bloqueia o teste no popup; devolve False (usuário não abriu dashboard)
+    resumos = []
     monkeypatch.setattr(
-        QMessageBox,
-        "information",
-        lambda *args, **kwargs: popups_mostrados.append((args, kwargs))
-        or QMessageBox.StandardButton.Ok,
+        main_window.MainWindow, "_popup_conclusao",
+        lambda self, resumo: resumos.append(resumo) or False,
     )
 
     # Spy no close()
@@ -228,18 +236,34 @@ def test_on_finished_mostra_resumo_e_fecha_janela(qtbot, app_config, monkeypatch
     w._on_finished(result)
 
     # Popup mostrado e janela fechada
-    assert len(popups_mostrados) == 1
+    assert len(resumos) == 1
     assert len(closes) == 1
+
+
+def test_on_finished_abrir_dashboard_spawna_processo(qtbot, app_config, monkeypatch):
+    """Se o usuário clica 'Abrir Dashboard' no popup final, spawna o processo."""
+    from src.domain.events import ChecklistResult
+
+    monkeypatch.setattr(
+        main_window.MainWindow, "_popup_conclusao", lambda self, resumo: True
+    )
+    monkeypatch.setattr(main_window.MainWindow, "close", lambda self: None)
+    chamado = []
+    monkeypatch.setattr(main_window, "spawn_dashboard", lambda db="": chamado.append(db))
+
+    w = MainWindow(_dvr(), app_config, db_path="pipe.db")
+    qtbot.addWidget(w)
+    w._on_finished(ChecklistResult(dvrs=_dvr(), excel_path="x", pdf_path="y"))
+
+    assert chamado == ["pipe.db"]
 
 
 def test_on_finished_loga_caminho_do_book(qtbot, app_config, monkeypatch):
     """O caminho do book PDF deve aparecer no log junto com o checklist."""
-    from PySide6.QtWidgets import QMessageBox
     from src.domain.events import ChecklistResult
 
     monkeypatch.setattr(
-        QMessageBox, "information",
-        lambda *a, **kw: QMessageBox.StandardButton.Ok,
+        main_window.MainWindow, "_popup_conclusao", lambda self, resumo: False
     )
     monkeypatch.setattr(main_window.MainWindow, "close", lambda self: None)
 
@@ -335,10 +359,10 @@ def test_on_finished_email_cancelado_mostra_aviso(qtbot, app_config, monkeypatch
     from PySide6.QtWidgets import QMessageBox
     from src.domain.events import ChecklistResult
 
-    popups = []
+    resumos = []
     monkeypatch.setattr(
-        QMessageBox, "information",
-        lambda *a, **kw: popups.append(a) or QMessageBox.StandardButton.Ok,
+        main_window.MainWindow, "_popup_conclusao",
+        lambda self, resumo: resumos.append(resumo) or False,
     )
     monkeypatch.setattr(main_window.MainWindow, "close", lambda self: None)
 
@@ -351,6 +375,6 @@ def test_on_finished_email_cancelado_mostra_aviso(qtbot, app_config, monkeypatch
     )
     w._on_finished(result)
 
-    # O texto do popup (4º arg posicional de information) deve mencionar o cancelamento
-    texto = " ".join(str(a) for a in popups[0])
+    # O resumo do popup deve mencionar o cancelamento do e-mail
+    texto = resumos[0]
     assert "NÃO enviado" in texto or "cancelado" in texto.lower()
