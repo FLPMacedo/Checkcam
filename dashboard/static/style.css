@@ -1,0 +1,4 @@
+/* Placeholder — o tema dark completo entra na Fase 4. */
+body { font-family: system-ui, sans-serif; margin: 0; }
+.topbar { display: flex; justify-content: space-between; padding: 12px 20px; }
+main { padding: 20px; }

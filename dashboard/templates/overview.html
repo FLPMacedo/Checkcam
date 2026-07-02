@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Overview — CheckCam{% endblock %}
+{% block content %}
+<section class="totais">
+  <div class="totais-item"><strong>{{ totais.total_dvrs }}</strong> DVRs</div>
+  <div class="totais-item"><strong>{{ totais.total_cameras }}</strong> câmeras</div>
+  <div class="totais-item"><strong>{{ totais.instalacoes_problema }}</strong> com problema</div>
+</section>
+
+<div class="grid">
+  {% for item in instalacoes %}
+  <a class="card saude-{{ item.saude }}" href="{{ url_for('instalacao', instalacao_id=item.instalacao.id) }}">
+    <h2>{{ item.instalacao.nome }}</h2>
+    {% if item.snapshot %}
+    <p class="resumo">
+      {{ item.snapshot.total_dvrs }} DVRs ·
+      {{ item.snapshot.cameras_ok }} OK /
+      {{ item.snapshot.cameras_alerta }} alerta /
+      {{ item.snapshot.cameras_sem_conexao }} sem conexão
+    </p>
+    <p class="quando">Último checklist: {{ item.snapshot.executado_em }}</p>
+    {% else %}
+    <p class="resumo vazio">Nenhum checklist executado ainda.</p>
+    {% endif %}
+  </a>
+  {% else %}
+  <p class="vazio">Nenhuma instalação cadastrada.</p>
+  {% endfor %}
+</div>
+{% endblock %}

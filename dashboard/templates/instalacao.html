@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ instalacao.nome }} — CheckCam{% endblock %}
+{% block content %}
+<a class="voltar" href="{{ url_for('overview') }}">← Voltar</a>
+<h1 class="saude-{{ saude }}">{{ instalacao.nome }}</h1>
+
+{% if snapshot %}
+<p class="quando">Último checklist: {{ snapshot.executado_em }}</p>
+
+<div class="dvrs">
+  {% for dvr in snapshot.dvrs %}
+  <div class="dvr">
+    <h3>{{ dvr.dvr_nome }} <small>{{ dvr.dvr_ip }}</small></h3>
+    <p class="hd">HD: {{ dvr.hd_status }}
+      {% if dvr.hd_total %}({{ dvr.hd_livre }} livre de {{ dvr.hd_total }}){% endif %}
+    </p>
+    <p class="contagens">
+      {{ dvr.cameras_ok }} OK ·
+      {{ dvr.cameras_alerta }} alerta ·
+      {{ dvr.cameras_offline }} offline ·
+      {{ dvr.cameras_nao_instaladas }} não instaladas
+    </p>
+  </div>
+  {% endfor %}
+</div>
+
+<section class="trend">
+  <h2>Histórico</h2>
+  <canvas id="trend-chart" data-instalacao="{{ instalacao.id }}"></canvas>
+</section>
+{% else %}
+<p class="vazio">Nenhum checklist executado ainda para esta instalação.</p>
+{% endif %}
+{% endblock %}
