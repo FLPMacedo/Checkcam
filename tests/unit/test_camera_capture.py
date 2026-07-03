@@ -345,6 +345,58 @@ def test_todas_as_chaves_falham_resulta_sem_conexao(app_config, monkeypatch):
     assert result[0].cameras[0].status == "SEM_CONEXAO"
 
 
+def test_timeout_no_primeiro_canal_pula_os_demais(app_config, monkeypatch):
+    """RTSP morto: se o 1º canal dá timeout, os demais viram SEM_CONEXAO
+    sem gastar 60s por canal."""
+    from pathlib import Path
+
+    comandos = []
+    def _run(cmd, **kwargs):
+        comandos.append(cmd)
+        raise subprocess.TimeoutExpired(cmd, 60)
+    monkeypatch.setattr("subprocess.run", _run)
+
+    dvr = _make_online_dvr(nome="DVR_MORTO", qtd=4)
+    (Path(app_config.base_dir) / dvr.nome).mkdir(parents=True, exist_ok=True)
+
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    # Só o 1º canal chamou o ffmpeg; os outros 3 foram pulados
+    assert len(comandos) == 1
+    cams = result[0].cameras
+    assert len(cams) == 4
+    assert all(c.status == "SEM_CONEXAO" for c in cams)
+
+
+def test_timeout_no_meio_pula_os_seguintes(app_config, monkeypatch):
+    """Canal 1 captura; canal 2 dá timeout → 3 e 4 são pulados."""
+    from pathlib import Path
+
+    comandos = []
+    def _run(cmd, **kwargs):
+        comandos.append(cmd)
+        from tests.fakes.fake_subprocess import FakeCompletedProcess
+        rtsp = cmd[cmd.index("-i") + 1]
+        img = cmd[-1]
+        if "Channels/101" in rtsp:      # canal 1 → sucesso
+            with open(img, "wb") as f:
+                f.write(b"\xff\xd8" + b"\x00" * 20000)
+            return FakeCompletedProcess(returncode=0)
+        raise subprocess.TimeoutExpired(cmd, 60)  # canal 2+ → timeout
+    monkeypatch.setattr("subprocess.run", _run)
+
+    dvr = _make_online_dvr(nome="DVR_MEIO", qtd=4)
+    (Path(app_config.base_dir) / dvr.nome).mkdir(parents=True, exist_ok=True)
+
+    result = camera_capture.capturar_cameras([dvr], app_config)
+
+    # canal 1 (sucesso) + canal 2 (timeout) = 2 chamadas; 3 e 4 pulados
+    assert len(comandos) == 2
+    cams = result[0].cameras
+    assert cams[0].status == "PENDENTE"
+    assert all(c.status == "SEM_CONEXAO" for c in cams[1:])
+
+
 def test_timeout_nao_dispara_retry_com_chave(app_config, monkeypatch):
     """TIMEOUT é problema de rede, não de credencial. Retry seria desperdício."""
     comandos = []

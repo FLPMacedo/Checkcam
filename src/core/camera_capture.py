@@ -64,8 +64,25 @@ def capturar_cameras(
         pasta = os.path.join(config.base_dir, dvr.nome.replace(" ", "_"))
         os.makedirs(pasta, exist_ok=True)
 
+        # Se um canal der timeout, o RTSP do DVR está mudo (serviço travado /
+        # criptografia de stream / sessões esgotadas). Não adianta esperar 60s
+        # em cada canal restante — marcamos todos como SEM_CONEXAO e seguimos.
+        rtsp_mudo = False
+
         for i in range(1, n_canais + 1):
             cam_nome = f"C{i}"
+
+            if rtsp_mudo:
+                dvr.cameras.append(
+                    Camera(
+                        nome=cam_nome,
+                        imagem=config.error_img,
+                        status=CameraStatus.SEM_CONEXAO,
+                        dvr_nome=dvr.nome,
+                    )
+                )
+                continue
+
             img_path = os.path.join(pasta, f"{cam_nome}.jpg")
 
             # 1ª tentativa: senha normal (override do DVR ou da instalação)
@@ -107,6 +124,9 @@ def capturar_cameras(
                     )
                 )
                 _log(f"   🎥 {cam_nome} ... {'TIMEOUT' if timeout else 'SEM CONEXÃO'}")
+                if timeout:
+                    rtsp_mudo = True
+                    _log("   ⛔ RTSP sem resposta — pulando canais restantes deste DVR")
 
     return dvrs
 
